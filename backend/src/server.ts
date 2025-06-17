@@ -8,10 +8,11 @@ import axios from "axios";
 import cookieParser from "cookie-parser";
 
 import authRoutes from "./routes/auth";
-import { ENV, PROJECT_FOLDER, SRC_FOLDER } from "./config/env";
+import configsRouter from "./routes/config";
+
+import { ENV } from "./config/env";
 import { authMiddleware } from "./middlewares/auth.middleware";
-import { couchProxy } from "./middlewares/proxy";
-import { extractBasicAuthFromToken, getOSRMDistanceAllProfile } from "./functions";
+import { ensureDatabaseExists, extractBasicAuthFromToken, getOSRMDistanceAllProfile } from "./functions";
 import helmet from 'helmet';
 import bearerToken from 'express-bearer-token';
 import path from 'path';
@@ -19,16 +20,23 @@ import { Errors } from "./routes/error";
 
 import bodyParser from 'body-parser';
 import { updateDocDistanceAndSaveDocs } from "./middlewares/bulk-handler";
+import { PROJECT_FOLDER, SRC_FOLDER } from "./config/env";
+
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import { ClientRequest } from "http";
+import cron from 'node-cron';
+import session from 'express-session';
+
+const { OSRM_URL, DHIS2_API_URL, HTTPS_PORT, HTTP_PORT, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST, COUCHDB_PROTOCOL, COUCHDB_DB, COUCHDB_URL, COUCHDB_PORT, COUCHDB_USER, COUCHDB_PASS } = ENV;
 
 
-
-const { DHIS2_API_URL, HTTPS_PORT, HTTP_PORT, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST } = ENV;
-
-const SECURE_PORT = parseInt(HTTPS_PORT || "3003");
-const UNSECURE_PORT = parseInt(HTTP_PORT || "8088");
+const SECURE_PORT = parseInt(HTTPS_PORT || "4047");
+const UNSECURE_PORT = parseInt(HTTP_PORT || "8047");
 
 // 🟢 Création du serveur HTTPS
 const HOST = SHOW_ALL_AVAILABLE_HOST ? '0.0.0.0' : 'localhost';
+const PORT = USE_SECURE_PORTS ? SECURE_PORT : UNSECURE_PORT;
+const PROTOCOL = USE_SECURE_PORTS ? 'https' : 'http';
 
 
 // 🌐 CORS
@@ -44,15 +52,17 @@ app.set('content-type', 'application/json; charset=utf-8');
 
 // 🌐 HTTPS Redirection Middleware
 app.use(async (req: Request, res: Response, next: NextFunction) => {
-  if (!req.secure && req.headers.host) {
-    return res.redirect(`https://${req.headers.host}${req.url}`);
+  if (USE_SECURE_PORTS === true) {
+    if (!req.secure && req.headers.host) {
+      return res.redirect(`https://${req.headers.host}${req.url}`);
+    }
   }
   next();
 });
 
 // ✅ Sécurité + Analyse
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: (origin: any, callback: any) => {
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
@@ -76,15 +86,15 @@ app.use((req, res, next) => {
 // app.use(cors());
 
 // 🔐 Middlewares
-// app.use(session({
-//   secret: 'session',
-//   cookie: {
-//     secure: isSecure,
-//     maxAge: 60000
-//   },
-//   saveUninitialized: true,
-//   resave: true
-// }))
+app.use(session({
+  secret: 'session',
+  cookie: {
+    secure: USE_SECURE_PORTS,
+    maxAge: 60000
+  },
+  saveUninitialized: true,
+  resave: true
+}))
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cookieParser());
 app.use(bearerToken());
@@ -92,16 +102,47 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ✅ Intercepter et parser les bulk_docs via /api/db
-// app.use(`/api/db/${COUCHDB_NAME}/_bulk_docs`, bodyParser.json({ limit: '10mb' }));
+// app.use(`/api/db/${COUCHDB_DB}/_bulk_docs`, bodyParser.json({ limit: '10mb' }));
 
 app.use('/api/db/:dbName', bodyParser.json({ limit: '200mb' }));
 
 app.use('/api/db/:dbName/_local/:docId', (req, res, next) => {
-  updateDocDistanceAndSaveDocs();
   return res.json({ ok: true });
 });
 
-app.use("/api/db", authMiddleware, couchProxy);
+app.use("/api/db", authMiddleware, createProxyMiddleware({
+  target: COUCHDB_URL,
+  changeOrigin: true,
+  selfHandleResponse: false,
+  secure: COUCHDB_PROTOCOL == 'https',
+  // pathRewrite:{ [`^/api/db/create/${COUCHDB_DB}`]: `/${COUCHDB_DB}` },
+  pathRewrite: (path, req) => path, // fallback
+  on: {
+    proxyReq: async (proxyReq: ClientRequest, req: any) => {
+      // Forcer le typage pour accéder à req.body
+      const authorization = 'Basic ' + Buffer.from(`${COUCHDB_USER}:${COUCHDB_PASS}`).toString('base64');
+      proxyReq.setHeader('Content-Type', 'application/json');
+      proxyReq.setHeader('Authorization', authorization);
+
+    }
+  }
+}));
+
+app.use('/database', createProxyMiddleware({
+  target: COUCHDB_URL,
+  changeOrigin: true,
+  // selfHandleResponse: false,
+  secure: COUCHDB_PROTOCOL == 'https',
+}));
+
+app.use('/osrm', createProxyMiddleware({
+  target: OSRM_URL,
+  changeOrigin: true,
+  // selfHandleResponse: false,
+  secure: false,
+}));
+
+app.use('/api/configs', configsRouter);
 
 // ✅ Static files (avant routes pour éviter catch-all trop tôt)
 app.use(express.static(path.join(PROJECT_FOLDER, 'views')));
@@ -129,14 +170,12 @@ app.post('/api/update-dhis2/geometry', async (req, res) => {
 
     // 🔐 Extraction et validation du token "Bearer xxxxx"
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'En-tête Authorization manquant ou invalide.' });
     }
 
     const token = authHeader.split(' ')[1];
     const basicAuth = extractBasicAuthFromToken(token); // ⬅️ à adapter à ta logique métier
-
     if (!basicAuth) {
       return res.status(401).json({ error: 'Authentification échouée.' });
     }
@@ -211,67 +250,81 @@ app.use(Errors.getErrors);
 app.use(Errors.get404);
 
 
-
-
-
-if (USE_SECURE_PORTS) {
-  const SSL_KEY_PATH = path.resolve(__dirname, './ssl/key.pem');
-  const SSL_CERT_PATH = path.resolve(__dirname, './ssl/cert.pem');
-
-  // 🔐 Vérifie que les fichiers existent
-  if (!fs.existsSync(SSL_KEY_PATH) || !fs.existsSync(SSL_CERT_PATH)) {
-    console.error('❌ Certificats SSL manquants ! Générez-les avec :');
-    console.error('   openssl req -x509 -newkey rsa:2048 -keyout ssl/key.pem -out ssl/cert.pem -days 365 -nodes');
-    process.exit(1);
+// Planification : toutes les 1 minutes
+cron.schedule('*/1 * * * *', async () => {
+  try {
+    console.log('⏳ Exécution...');
+    await updateDocDistanceAndSaveDocs();
+    console.log('✅ Terminé.');
+  } catch (err: any) {
+    console.error('❌ Erreur pendant la tâche cron :', err.message);
   }
+});
 
-  // 🔐 Chargement des certificats SSL
-  const sslOptions = {
-    key: fs.readFileSync(SSL_KEY_PATH),
-    cert: fs.readFileSync(SSL_CERT_PATH),
-  };
 
-  // ✅ HTTPS Server
-  https.createServer(sslOptions, app).listen(SECURE_PORT, HOST, () => {
-    const host0 = `https://localhost:4200`;
-    const host1 = `https://localhost:${SECURE_PORT}`;
-    console.log(`✅ HTTPS server running on ${host1}`);
-    if (!allowedOrigins.includes(host0)) allowedOrigins.push(host0);
-    if (!allowedOrigins.includes(host1)) allowedOrigins.push(host1);
-    if (SHOW_ALL_AVAILABLE_HOST) {
-      const interfaces = os.networkInterfaces();
-      Object.values(interfaces).flat().forEach((iface) => {
-        if (iface?.family === 'IPv4' && !iface.internal) {
-          const host1 = `https://${iface.address}:${SECURE_PORT}`;
-          console.log(`🌐 Accessible à : ${host1}`);
-          if (!allowedOrigins.includes(host1)) allowedOrigins.push(host1)
-        }
-      });
-    }
-  });
-} else {
-  http.createServer(app).listen(UNSECURE_PORT, HOST, () => {
-    const host0 = `http://localhost:4200`;
-    const host1 = `http://localhost:${UNSECURE_PORT}`;
-    console.log(`✅ HTTP server running on ${host1}`);
-    if (!allowedOrigins.includes(host0)) allowedOrigins.push(host0);
-    if (!allowedOrigins.includes(host1)) allowedOrigins.push(host1);
-    if (SHOW_ALL_AVAILABLE_HOST) {
-      const interfaces = os.networkInterfaces();
-      Object.values(interfaces).flat().forEach((iface) => {
-        if (iface?.family === 'IPv4' && !iface.internal) {
-          const host1 = `http://${iface.address}:${UNSECURE_PORT}`;
-          console.log(`🌐 Accessible à : ${host1}`);
-          if (!allowedOrigins.includes(host1)) allowedOrigins.push(host1)
-        }
-      });
-    }
-  });
-  // 🌐 Redirect HTTP to HTTPS
-  // http.createServer((req, res) => {
-  //   const host = req.headers['host']?.replace(/:\d+$/, `:${PORT}`) || `localhost:${PORT}`;
-  //   res.writeHead(301, { Location: `https://${host}${req.url}` });
-  //   res.end();
-  // }).listen(8088);
 
-}
+// 🔐 Chargement des certificats SSL
+const SSL_KEY_PATH = path.resolve(__dirname, './ssl/key.pem');
+const SSL_CERT_PATH = path.resolve(__dirname, './ssl/cert.pem');
+// openssl req -x509 -newkey rsa:2048 -keyout ssl/key.pem -out ssl/cert.pem -days 365 -nodes
+
+const isSecureHost = USE_SECURE_PORTS && fs.existsSync(SSL_KEY_PATH) && fs.existsSync(SSL_CERT_PATH);
+
+const sslOptions = {
+  key: isSecureHost ? fs.readFileSync(SSL_KEY_PATH) : '',
+  cert: isSecureHost ? fs.readFileSync(SSL_CERT_PATH) : '',
+};
+
+
+(isSecureHost ? https.createServer(sslOptions, app) : http.createServer(app)).listen(PORT, HOST, () => {
+  const host0 = `${PROTOCOL}://localhost:4200`;
+  const host1 = `${PROTOCOL}://localhost:${PORT}`;
+
+  console.log(`✅ ${PROTOCOL} server running on ${host1}`);
+  console.log(`🛑 COUCHDB listening at ${PROTOCOL}://localhost:${PORT}/database`);
+  console.log(`🔐 OSRM listening at ${PROTOCOL}://localhost:${PORT}/osrm`);
+
+  if (!allowedOrigins.includes(host0)) allowedOrigins.push(host0);
+  if (!allowedOrigins.includes(host1)) allowedOrigins.push(host1);
+  ensureDatabaseExists('_users').then(ok => { if (ok) console.log('📦 Base _users prête à l\'emploi'); });
+  if (COUCHDB_DB && COUCHDB_DB != '') {
+    ensureDatabaseExists(COUCHDB_DB).then(ok => { if (ok) console.log(`📦 Base ${COUCHDB_DB} prête à l'emploi`);});
+  }
+  if (SHOW_ALL_AVAILABLE_HOST) {
+    const interfaces = os.networkInterfaces();
+    Object.values(interfaces).flat().forEach((iface) => {
+      if (iface?.family === 'IPv4' && !iface.internal) {
+        const host1 = `${PROTOCOL}://${iface.address}:${PORT}`;
+        console.log(`🌐 Accessible à : ${host1}`);
+        if (!allowedOrigins.includes(host1)) allowedOrigins.push(host1)
+      }
+    });
+  }
+});
+
+
+// app.listen(PORT, HOST, () => {
+//   const host0 = `${PROTOCOL}://localhost:4200`;
+//   const host1 = `${PROTOCOL}://localhost:${PORT}`;
+//   if (!allowedOrigins.includes(host0)) allowedOrigins.push(host0);
+//   if (!allowedOrigins.includes(host1)) allowedOrigins.push(host1);
+//   ensureDatabaseExists('_users').then(ok => {
+//     if (ok) console.log('📦 Base _users prête à l\'emploi');
+//   });
+//   if (COUCHDB_DB && COUCHDB_DB != '') {
+//     ensureDatabaseExists(COUCHDB_DB).then(ok => {
+//       if (ok) console.log(`📦 Base ${COUCHDB_DB} prête à l'emploi`);
+//     });
+//   }
+//   console.log(`✅ Backend listening at ${PROTOCOL}://localhost:${PORT}`);
+//   console.log(`🔐 COUCHDB listening at http://localhost:${COUCHDB_PORT}`);
+// });
+
+
+// 🌐 Redirect HTTP to HTTPS
+// http.createServer((req, res) => {
+//   const host = req.headers['host']?.replace(/:\d+$/, `:${PORT}`) || `localhost:${PORT}`;
+//   res.writeHead(301, { Location: `https://${host}${req.url}` });
+//   res.end();
+// }).listen(8088);
+

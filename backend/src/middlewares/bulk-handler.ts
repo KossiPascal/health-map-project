@@ -6,14 +6,14 @@ import { ENV } from '../config/env';
 import { getOSRMDistance } from '../functions';
 import { ChwMap, LatLng } from '../interfaces';
 
-const { COUCH_URL, COUCHDB_NAME, COUCH_USER, COUCH_PASS } = ENV;
+const { COUCHDB_URL, COUCHDB_DB, COUCHDB_USER, COUCHDB_PASS } = ENV;
 
 const DESIGN_ID = '_design/map_views';
 const VIEW_NAME = 'by_no_distance';
-const AUTH = { username: COUCH_USER, password: COUCH_PASS } as any;
+const AUTH = { username: COUCHDB_USER, password: COUCHDB_PASS } as any;
 
 async function fetchDocsNeedingUpdate():Promise<ChwMap[]> {
-  const response = await axios.get(`${COUCH_URL}/${COUCHDB_NAME}/${DESIGN_ID}/_view/${VIEW_NAME}`, {
+  const response = await axios.get(`${COUCHDB_URL}/${COUCHDB_DB}/${DESIGN_ID}/_view/${VIEW_NAME}`, {
     params: {
       include_docs: true
     },
@@ -67,7 +67,7 @@ export async function updateDocDistanceAndSaveDocs() {
       return;
     }
 
-    const bulkResponse = await axios.post(`${COUCH_URL}/${COUCHDB_NAME}/_bulk_docs`, { docs: updatedDocs }, { auth: AUTH });
+    const bulkResponse = await axios.post(`${COUCHDB_URL}/${COUCHDB_DB}/_bulk_docs`, { docs: updatedDocs }, { auth: AUTH });
 
     console.log(`✅ ${updatedDocs.length} documents mis à jour`, bulkResponse.data);
   } catch (error) {
@@ -89,7 +89,7 @@ export async function updateDocDistanceAndSaveDocs() {
 //       if (!doc.type || !doc.createdAt) return doc;
 
 //       // ⚠️ Appel à la vue pour récupérer le dernier doc
-//       const response = await axios.get(`${COUCH_URL}/${req.params.db}/_design/by_createdAt/_view/last_doc`, {
+//       const response = await axios.get(`${COUCHDB_URL}/${req.params.db}/_design/by_createdAt/_view/last_doc`, {
 //         params: {
 //           startkey: JSON.stringify([doc.type, {}]),
 //           endkey: JSON.stringify([doc.type, null]),
@@ -97,8 +97,8 @@ export async function updateDocDistanceAndSaveDocs() {
 //           limit: 1
 //         },
 //         auth: {
-//           username: COUCH_USER,
-//           password: COUCH_PASS
+//           username: COUCHDB_USER,
+//           password: COUCHDB_PASS
 //         }
 //       });
 
@@ -118,12 +118,12 @@ export async function updateDocDistanceAndSaveDocs() {
 
 //     // ✅ Envoi à CouchDB
 //     const final = await axios.post(
-//       `${COUCH_URL}/${req.params.db}/_bulk_docs`,
+//       `${COUCHDB_URL}/${req.params.db}/_bulk_docs`,
 //       { ...body, docs: enrichedDocs },
 //       {
 //         auth: {
-//           username: COUCH_USER,
-//           password: COUCH_PASS
+//           username: COUCHDB_USER,
+//           password: COUCHDB_PASS
 //         },
 //         headers: { 'Content-Type': 'application/json' }
 //       }
@@ -188,7 +188,7 @@ export async function updateDocDistanceAndSaveDocs() {
 // import { ENV } from '../config/env';
 
 // const router = express.Router();
-// const { COUCH_URL, COUCH_USER, COUCH_PASS } = ENV;
+// const { COUCHDB_URL, COUCHDB_USER, COUCHDB_PASS } = ENV;
 
 
 
@@ -222,11 +222,11 @@ export async function updateDocDistanceAndSaveDocs() {
 
 //     // 📤 Réenvoi vers CouchDB avec les docs modifiés
 //     const proxyReq = http.request(
-//       `${COUCH_URL}/${req.params.db}/_bulk_docs`,
+//       `${COUCHDB_URL}/${req.params.db}/_bulk_docs`,
 //       {
 //         method: 'POST',
 //         headers: {
-//           'Authorization': 'Basic ' + Buffer.from(`${COUCH_USER}:${COUCH_PASS}`).toString('base64'),
+//           'Authorization': 'Basic ' + Buffer.from(`${COUCHDB_USER}:${COUCHDB_PASS}`).toString('base64'),
 //           'Content-Type': 'application/json',
 //           'Content-Length': Buffer.byteLength(JSON.stringify({ ...body, docs: transformed }))
 //         }
@@ -366,17 +366,17 @@ export async function updateDocDistanceAndSaveDocs() {
         // }
 
         // // Rewrite for accessing existing DBs
-        // if (path.startsWith(`/docs/${COUCH_CHW_DB}`)) {
-        //     // return`/${COUCH_CHW_DB}${path.slice(`/docs/${COUCH_CHW_DB}`.length)}`;
+        // if (path.startsWith(`/docs/${COUCHDB_DB}`)) {
+        //     // return`/${COUCHDB_DB}${path.slice(`/docs/${COUCHDB_DB}`.length)}`;
         //     // // return pathName;
         //     // console.log(path)
-        //     return `/${COUCH_CHW_DB}`;
+        //     return `/${COUCHDB_DB}`;
         // }
 
-        // if (path.startsWith(`/docs/${COUCH_FS_DB}`)) {
-        //     // return`/${COUCH_FS_DB}${path.slice(`/docs/${COUCH_FS_DB}`.length)}`;
+        // if (path.startsWith(`/docs/${COUCHDB_DB}`)) {
+        //     // return`/${COUCHDB_DB}${path.slice(`/docs/${COUCHDB_DB}`.length)}`;
         //     // // return pathName
-        //     return `/${COUCH_FS_DB}`;
+        //     return `/${COUCHDB_DB}`;
         // }
 
 

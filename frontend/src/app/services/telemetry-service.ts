@@ -2,53 +2,52 @@ import { Injectable } from "@angular/core";
 
 @Injectable({ providedIn: 'root' })
 export class TelemetryService {
-  getTelemetry(): Record<string, string> {
-    return {
-      deviceId: this.getDeviceId(),
-      userAgent: navigator.userAgent,
-      language: navigator.language,
-      syncInitiatedAt: new Date().toISOString(),
-      appVersion: '1.0.0' // injecte dynamiquement si besoin
-    };
-  }
-
-  private getDeviceId(): string {
-    // Exemple : fingerprint ou localStorage
-    let id = localStorage.getItem('deviceId');
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem('deviceId', id);
+    getTelemetry(): Record<string, string> {
+        return {
+            deviceId: this.getDeviceId(),
+            userAgent: navigator.userAgent,
+            language: navigator.language,
+            syncInitiatedAt: new Date().toISOString(),
+            appVersion: '1.0.0' // injecte dynamiquement si besoin
+        };
     }
-    return id;
-  }
 
-  async enrichLocalDocsBeforeSync(db: PouchDB.Database, telemetry: Record<string, any>) {
-  const all = await db.allDocs({ include_docs: true });
-  const updated = all.rows
-    .filter(row => row.doc && !(row.doc as any)._deleted)
-    .map(row => {
-      const doc = row.doc!;
-      return {
-        ...doc,
-        telemetry,
-        lastModifiedLocally: new Date().toISOString()
-      };
-    });
+    private getDeviceId(): string {
+        // Exemple : fingerprint ou localStorage
+        let id = localStorage.getItem('deviceId');
+        if (!id) {
+            id = crypto.randomUUID();
+            localStorage.setItem('deviceId', id);
+        }
+        return id;
+    }
 
-  // Bulk update
-  await db.bulkDocs(updated);
-}
+    async enrichLocalDocsBeforeSync(db: PouchDB.Database, telemetry: Record<string, any>) {
+        const all = await db.allDocs({ include_docs: true });
+        const updated = all.rows
+            .filter(row => row.doc && !(row.doc as any)._deleted)
+            .map(row => {
+                const doc = row.doc!;
+                return {
+                    ...doc,
+                    telemetry,
+                    lastModifiedLocally: new Date().toISOString()
+                };
+            });
 
-async startSync(localDB: PouchDB.Database, telemetryService: TelemetryService) {
-  const telemetry = telemetryService.getTelemetry();
+        // Bulk update
+        await db.bulkDocs(updated);
+    }
 
-  await this.enrichLocalDocsBeforeSync(localDB, telemetry);
+    async startSync(localDB: PouchDB.Database, telemetryService: TelemetryService) {
+        const telemetry = telemetryService.getTelemetry();
 
-  return PouchDB.sync(localDB, 'http://localhost:3003/mydb', {
-    live: true,
-    retry: true
-  });
-}
+        await this.enrichLocalDocsBeforeSync(localDB, telemetry);
 
+        return PouchDB.sync(localDB, 'http://localhost:4047/mydb', {//8047
+            live: true,
+            retry: true
+        });
+    }
 
 }

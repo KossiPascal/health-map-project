@@ -6,12 +6,13 @@ import { DirectionsResponse } from '../models/interfaces';
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  private readonly googleApiKey = 'AIzaSyD4eM4OgVxby7fMu7XUAKkJwY4bGaZmlww';
+  private readonly googleApiKey = '';
 
   constructor(private http: HttpClient) { }
 
+
   /** Construit l'URL vers le backend Node.js */
-  apiUrl(path: string): string {
+  apiUrl(path: string, isProduction: boolean = false): string {
     path = path.trim();
 
     // Assurer un préfixe /api/
@@ -21,16 +22,15 @@ export class ApiService {
       }
       path = '/api/' + path.replace(/^\/+/, '');
     }
+    // path = path.trim().replace(/^\/+/, '');
+    // if (!path.startsWith('api/'))  path = 'api/' + path;
 
     let origin = window.location.origin;
 
     // Redirection automatique vers backend local si en dev
     if (window.location.port === '4200') {
-      origin = `${window.location.protocol}//${window.location.hostname}:3003`;
-    }
-
-    if (window.location.protocol === 'http:') {
-      origin = `https://${window.location.hostname}:3003`;
+      origin = `${window.location.protocol}//${window.location.hostname}:${isProduction ? 4047 : 8047}`;
+    //   origin = `https://${window.location.hostname}:4047`;
     }
 
     return new URL(path, origin).toString();

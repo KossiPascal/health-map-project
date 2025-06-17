@@ -6,10 +6,11 @@ import { MapRegisterComponent } from './modules/map-register/map-register.compon
 import { LoginComponent } from './modules/login/login.component';
 import { AuthGuard } from './guards/auth.guard';
 import { MapVillageWithProblemsComponent } from '@kossi-modules/map-village-with-problems/map-village-with-problems.component';
+import { LogOutGuard } from './guards/logout.guard';
 
 const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
-  { path: 'login', component: LoginComponent },
+  { path: 'login', component: LoginComponent, canActivate: [LogOutGuard] },
   { path: 'map-viewer', component: MapViewerComponent, canActivate: [AuthGuard] },
   { path: 'map-dashboard', component: MapDashboardComponent, canActivate: [AuthGuard] },
   { path: 'map-register', component: MapRegisterComponent, canActivate: [AuthGuard] },
@@ -18,7 +19,7 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes)],
+  imports: [RouterModule.forRoot(routes, { useHash: true })],
   exports: [RouterModule]
 })
-export class AppRoutingModule {}
+export class AppRoutingModule { }

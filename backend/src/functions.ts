@@ -1,9 +1,122 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { ENV } from './config/env';
 import jwt from "jsonwebtoken";
 import { LatLng, ORSProfile, DistanceResult, OSRMProfile } from './interfaces';
+import path from 'path';
 
-const { GOOGLE_API_KEY, ORS_API_KEY, JWT_SECRET } = ENV;
+const { OSRM_URL, GOOGLE_API_KEY, ORS_API_KEY, JWT_SECRET, COUCHDB_USER, COUCHDB_PASS, COUCHDB_URL } = ENV;
+
+
+// // Auth Header
+// const authHeader = {
+//     Authorization: 'Basic ' + Buffer.from(`${COUCHDB_USER}:${COUCHDB_PASS}`).toString('base64'),
+// };
+// export async function ensureDatabaseExists(dbName: string, force = false): Promise<boolean> {
+//     // if (!/^[a-z][a-z0-9_$()+/-]*$/.test(dbName)) {
+//     //     console.error(`❌ Nom de base invalide: "${dbName}"`);
+//     //     return false;
+//     // }
+
+//     const dbUrl = `${COUCHDB_URL}/${dbName}`;
+//     console.log(dbUrl)
+
+//     try {
+//         const response = await axios.head(dbUrl, { headers: authHeader });
+
+//         if (response.status === 200 && !force) {
+//             console.log(`✅ La base "${dbName}" existe déjà.`);
+//             return true;
+//         }
+
+//         if (force) {
+//             console.log(`⚠️ Recréation non-destructive de "${dbName}"...`);
+//             // CouchDB ne supporte pas une recréation sans suppression, donc on skippe
+//             return true;
+//         }
+
+//     } catch (error: any) {
+//         const axiosErr = error as AxiosError;
+
+//         if (axiosErr.response?.status === 404) {
+//             // Base inexistante, création
+//             try {
+//                 await axios.put(dbUrl, {}, { headers: authHeader });
+//                 console.log(`🆕 Base "${dbName}" créée avec succès.`);
+//                 return true;
+//             } catch (creationError: any) {
+//                 console.error(`❌ Erreur création "${dbName}":`, creationError.message);
+//                 return false;
+//             }
+//         }
+
+//         console.error(`❌ Erreur accès "${dbName}":`, axiosErr.message);
+//         return false;
+//     }
+
+//     return false;
+// }
+
+/**
+ * Vérifie si la base CouchDB existe, et la crée si elle est absente
+ */
+export async function ensureDatabaseExists(dbName: string): Promise<boolean> {
+    if (!COUCHDB_URL || !COUCHDB_USER || !COUCHDB_PASS) {
+        console.error(`❌ You must set ENV varialble: COUCHDB_URL, COUCHDB_USER, COUCHDB_PASS `);
+        return false;
+    }
+
+
+    const dbUrl = `${COUCHDB_URL}/${dbName}`;
+    console.log(dbUrl)
+
+    try {
+        // 🟡 Vérifie si la base existe via HEAD
+        await axios.head(dbUrl, {
+            auth: {
+                username: COUCHDB_USER,
+                password: COUCHDB_PASS,
+            },
+        });
+        // console.log(`✅ La base "${dbName}" existe déjà.`);
+        return true;
+    } catch (error: any) {
+        if (error.response?.status === 404) {
+            // 🔵 Base inexistante → création
+            try {
+                await axios.put(dbUrl, {}, {
+                    auth: {
+                        username: COUCHDB_USER,
+                        password: COUCHDB_PASS,
+                    },
+                });
+                // console.log(`🆕 Base "${dbName}" créée avec succès.`);
+                return true;
+            } catch (creationError: any) {
+                console.error(`❌ Erreur création de "${dbName}":`, creationError?.message || creationError);
+                return false;
+            }
+        } else {
+            console.error(`❌ Erreur vérification "${dbName}":`, error?.message || error);
+            return false;
+        }
+    }
+}
+
+
+export function appVersion(): { service_worker_version: number | null, app_version: string | null } {
+    var service_worker_version = null;
+    var app_version = null;
+    try {
+        service_worker_version = require('../../views/ngsw.json')?.timestamp;
+        app_version = require('../package.json')?.version;
+    } catch (error) { }
+
+    return {
+        service_worker_version,
+        app_version: app_version
+    };
+}
+
 
 export function extractBasicAuthFromToken(token: string): string | null {
     try {
@@ -162,7 +275,7 @@ export async function getOSRMDistance(origin: LatLng, destination: LatLng, profi
         const [lat1, lng1] = origin;
         const [lat2, lng2] = destination;
 
-        const url = `http://localhost:5000/route/v1/${profile}/${lng1},${lat1};${lng2},${lat2}?overview=false`;
+        const url = `${OSRM_URL}/route/v1/${profile}/${lng1},${lat1};${lng2},${lat2}?overview=false`;
 
         const response = await axios.get(url);
         const route = response.data?.routes?.[0];

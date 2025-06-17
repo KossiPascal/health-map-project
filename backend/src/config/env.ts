@@ -8,50 +8,67 @@ export const PROJECT_FOLDER = path.resolve(API_FOLDER, '..');
 export const PROJECT_FOLDER_PARENT = path.resolve(PROJECT_FOLDER, '..');
 export const JSON_DB_PATH = path.join(API_FOLDER, 'jsonDb');
 
-// Chargement des .env avec priorité (SRC > API > PROJECT)
-const envPaths = [
-    path.join(SRC_FOLDER, '.env'),
-    path.join(API_FOLDER, '.env'),
-    path.join(PROJECT_FOLDER, '.env'),
-    path.join(PROJECT_FOLDER_PARENT, '.env')
-];
 
-for (const envPath of envPaths) {
-    if (fs.existsSync(envPath)) {
-        dotenv.config({ path: envPath, override: true, debug: true });
-        // console.log(`✅ .env loaded from ${envPath}`);
-    } else {
-        // console.warn(`⚠️ .env file not found at ${envPath}`);
+dotenv.config();
+
+if (process.env.NODE_ENV !== 'production' || process.env.IS_DOCKER_RUNNING !== 'true') {
+    // Chargement des .env avec priorité (SRC > API > PROJECT)
+    const envPaths = [
+        path.join(SRC_FOLDER, '.env'),
+        path.join(API_FOLDER, '.env'),
+        path.join(PROJECT_FOLDER, '.env'),
+        path.join(PROJECT_FOLDER_PARENT, '.env')
+    ];
+
+    for (const envPath of envPaths) {
+        if (fs.existsSync(envPath)) {
+            dotenv.config({ path: envPath, override: true, debug: true });
+            // console.log(`✅ .env loaded from ${envPath}`);
+        } else {
+            // console.warn(`⚠️ .env file not found at ${envPath}`);
+        }
     }
 }
 
-// Extraction des variables d’environnement
-const { HTTPS_PORT, HTTP_PORT, ORS_API_KEY, GOOGLE_API_KEY, JWT_SECRET, DHIS2_API_URL, COUCH_USER, COUCH_PASS, COUCH_PORT, COUCHDB_NAME, DHIS2_ADMIN_USERNAMES, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST, ...restOfEnv } = process.env;
-
-// Export centralisé
 export const ENV = {
-    // Autres variables .env non critiques
-    ...restOfEnv,
-    
-    HTTPS_PORT,
-    HTTP_PORT,
+    HTTPS_PORT: process.env.HTTPS_PORT,
+    HTTP_PORT: process.env.HTTP_PORT,
+    JWT_SECRET: process.env.JWT_SECRET,
 
-    USE_SECURE_PORTS: USE_SECURE_PORTS == 'true',
-    SHOW_ALL_AVAILABLE_HOST: SHOW_ALL_AVAILABLE_HOST == 'true',
-    // Dhis2
-    DHIS2_ADMIN_USERNAMES: (DHIS2_ADMIN_USERNAMES||'').split(','),
-    DHIS2_API_URL,
-    // CouchDB
-    COUCH_USER,
-    COUCH_PASS,
-    COUCH_PORT,
-    COUCHDB_NAME, 
-    get COUCH_URL():string {
-        return `http://${this.COUCH_USER}:${this.COUCH_PASS}@localhost:${this.COUCH_PORT}`;
+    COUCHDB_USER: process.env.COUCHDB_USER,
+    COUCHDB_PASS: process.env.COUCHDB_PASS,
+    COUCHDB_DB: process.env.COUCHDB_DB,
+    COUCHDB_PROTOCOL: process.env.COUCHDB_PROTOCOL || 'http',
+
+    get COUCHDB_PORT(): string | undefined {
+        return process.env.IS_DOCKER_RUNNING == 'true' ? '5984' : process.env.COUCHDB_PORT;
+    },
+    get COUCHDB_HOST(): string {
+        return process.env.IS_DOCKER_RUNNING == 'true' ? 'couchdb' : (process.env.COUCHDB_HOST || 'localhost');
+    },
+    get COUCHDB_URL() {
+        return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_USER}:${this.COUCHDB_PASS}@${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`;
     },
 
-    // Auth
-    JWT_SECRET,
-    GOOGLE_API_KEY,
-    ORS_API_KEY
+    get OSRM_HOST() {
+        return process.env.IS_DOCKER_RUNNING == 'true' ? 'osrm-server' : 'localhost';
+    },
+    get OSRM_PORT(): string | undefined {
+        return process.env.IS_DOCKER_RUNNING == 'true' ? '5000' : process.env.OSRM_PORT;
+    },
+
+    get OSRM_URL() {
+        return `http://${this.OSRM_HOST}:${this.OSRM_PORT}`;
+    },
+
+    USE_SECURE_PORTS: process.env.USE_SECURE_PORTS == 'true',
+    SHOW_ALL_AVAILABLE_HOST: process.env.SHOW_ALL_AVAILABLE_HOST == 'true',
+
+    DHIS2_API_URL: process.env.DHIS2_API_URL,
+    DHIS2_ADMIN_USERNAMES: (process.env.DHIS2_ADMIN_USERNAMES || '').split(','),
+
+    GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+    ORS_API_KEY: process.env.ORS_API_KEY,
 };
+
+

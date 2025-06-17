@@ -16,21 +16,24 @@
     "url": "https://github.com/KossiPascal/country-chws-map"
   },
   "scripts": {
-    "build-watch": "cd frontend && npm run simple-build -- --watch=true & node ./scripts/watch.js",
-    "dev-backend": "nodemon --watch 'backend' --watch 'views/*.json' --watch 'shared-libs/**/*.ts' backend/src/server.ts -- --allow-cors",
-    "dev-new-backend": "nodemon --watch 'new-backend' --watch 'views/*.json' --watch 'shared-libs/**/*.ts' new-backend/src/server.ts -- --allow-cors",
-    "send-git": "git status && git add . && git status && git commit -m \"Initial Commit\" && git status && git push -u origin main && git status",
+    "start": "npm run clean & npm run app-api-start",
     "clean": "npm cache clean --force",
-    "install-app": "npm install",
+    "app-api-start": "cd backend && npm run start",
+    "send-git": "git status && git add . && git status && git commit -m \"Initial Commit\" && git status && git push -u origin main && git status",
+
     "install-backend": "cd backend && npm install",
     "install-new-backend": "cd new-backend && npm install",
     "install-frontend": "cd frontend && npm install",
     "server-install": "npm run install-app & npm run install-backend",
     "install-all": "npm run install-app & npm run install-backend & npm run install-frontend",
-    "start": "npm run clean & npm run dev-backend",
     "new-start": "npm run clean & npm run dev-new-backend",
     "update-service-worker": "node scripts/cli updateServiceWorker",
-    "copy-ngsw": "./scripts/copy-ngsw.sh"
+    "copy-ngsw": "./scripts/copy-ngsw.sh",
+
+    "build-watch": "cd frontend && npm run simple-build -- --watch=true & node ./scripts/watch.js",
+    "dev-backend": "nodemon --watch 'backend' --watch 'views/*.json' --watch 'shared-libs/**/*.ts' backend/src/server.ts -- --allow-cors",
+    "dev-new-backend": "nodemon --watch 'new-backend' --watch 'views/*.json' --watch 'shared-libs/**/*.ts' new-backend/src/server.ts -- --allow-cors",
+    "install-app": "npm install"
   },
   "author": "Kossi TSOLEGNAGBO",
   "license": "ISC",

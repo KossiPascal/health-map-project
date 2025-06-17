@@ -1,6 +1,6 @@
 #!/bin/bash
-
-echo "📦 Démarrage du serveur backend en dev avec HTTPS (port 3003) et HTTP (port 8080)..."
+# 8047
+echo "📦 Démarrage du serveur backend en dev avec HTTPS (port 4047) et HTTP (port 8080)..."
 
 # Vérifie si ssl existe
 if [ ! -f ssl/key.pem ] || [ ! -f ssl/cert.pem ]; then
@@ -11,3 +11,4 @@ fi
 
 # Lance le backend
 npx nodemon --delay 3000ms src/server.ts
+      
