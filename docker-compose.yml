@@ -8,7 +8,6 @@ services:
     container_name: chw-map-couchdb
     env_file:
       - ./.env  # Chemin vers le fichier .env si nécessaire
-    # - ../.env
     ports:
       - "${COUCHDB_PORT:-5984}:5984"
     volumes:
@@ -41,9 +40,9 @@ services:
       - "${HTTPS_PORT:-4047}:4047"
     # En dev, le montage permet le hot-reload, en prod, il faut retirer ce volume pour isoler le container
     volumes:
-      - ./backend:/app/backend       # Montage pour développement local (commenter/enlever en production)
-      - ./views:/app/views
-    # - ./osrm-server:/app/osrm-server
+      - ${BACKEND_FOLDER:-./backend}:/app/backend       # Montage pour développement local (commenter/enlever en production)
+      - ${VIEWS_FOLDER:-./views}:/app/views
+    # - ${OSRM_FOLDER:-./osrm-server}:/app/osrm-server
     env_file:
       - ./.env                       # Charger les variables depuis un fichier .env
     environment:
@@ -60,8 +59,8 @@ services:
     image: osrm/osrm-backend
     container_name: osrm-prepare
     volumes:
-      - ./osrm-server:/rawdata
-      - ./osrm-server/togo:/data
+      - ${OSRM_FOLDER:-./osrm-server}:/rawdata
+      - ${OSRM_FOLDER:-./osrm-server}/togo:/data
     working_dir: /rawdata
     command:
       - bash
@@ -95,7 +94,7 @@ services:
     depends_on:
       - osrm-prepare
     volumes:
-      - ./osrm-server/togo:/data
+      - ${OSRM_FOLDER:-./osrm-server}/togo:/data
     ports:
       - "${OSRM_PORT:-5000}:5000"
     command: osrm-routed --algorithm mld /data/togo-latest.osrm
@@ -104,12 +103,10 @@ services:
     restart: unless-stopped
 
 
-
-
 # couchdb-prepare:
 #   build:
 #     context: .
-#     dockerfile: ./docker/couchdb-prepare/Dockerfile
+#     dockerfile: ${DOCKER_FOLDER:-./docker}/couchdb-prepare/Dockerfile
 #   container_name: chw-map-couchdb-prepare
 #   depends_on:
 #     - couchdb
