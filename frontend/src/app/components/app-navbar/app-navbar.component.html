@@ -1,0 +1,61 @@
+ <nav class="navbar1">
+  <div class="nav-left">
+    <img style="height:40px;margin-right: 10px;" src="assets/logo/ih.png" alt>
+    <img style="height:40px;;margin-right: 10px;" src="assets/logo/togo.png"
+      alt>
+    <strong style="color: #2b6cb0;">ASC MAP</strong>
+
+    
+  </div>
+  <div class="nav-right">
+    <div *ngIf="isOnline; else offlineTpl" class="status online">
+      <i class="fas fa-wifi icon"></i>En ligne
+    </div>
+    <ng-template #offlineTpl>
+      <div class="status offline">Hors ligne</div>
+    </ng-template>
+    <div class="toggle-menu" #menuRef>
+      <button (click)="toggleMenu()" class="btn"><i
+          class="fas fa-bars"></i></button>
+      <div *ngIf="activeMenu" class="menu-options">
+        <button (click)="triggerManualSync()" [disabled]="db.isActive"
+          class="manual-sync-btn" [ngClass]="db.cssContainerClass$ | async">
+          <i class="fas" [ngClass]="db.cssClass$ | async"></i>
+          <span>{{ db.syncStatusLabel }}</span>
+        </button>
+        <button class="btn danger" (click)="logout($event)">
+          <i class="fas fa-sign-out-alt"></i>
+          <span>Déconnexion</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<nav class="navbar2">
+  <div class="nav-left">
+    <a routerLink="/map-register"
+      class="toggle-link {{ isActiveRoute('/map-register') ? 'active' : '' }}">
+      <i class="fas" [ngClass]="'fa-chart-line'"></i> <span>Ajouter</span>
+    </a>
+
+    <a routerLink="/map-dashboard"
+      class="toggle-link {{ isActiveRoute('/map-dashboard') ? 'active' : '' }}">
+      <i class="fas" [ngClass]="'fa-user-plus'"></i> <span>Dashboard</span> 
+    </a>
+
+    <a routerLink="/map-viewer"
+      class="{{ isActiveRoute('/map-viewer') ? 'active' : '' }}">
+      <i class="fas fa-map"></i> <span>Carte</span>
+    </a>
+
+    <a routerLink="/map-village-matched"
+      class="{{ isActiveRoute('/map-village-matched') ? 'active' : '' }}">
+      <i class="fas fa-home-alt"></i> <span>Redondants</span>
+    </a>
+
+  </div>
+
+  <div class="nav-right">
+  </div>
+</nav>

@@ -1,0 +1,223 @@
+.map-register-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+form {
+  max-width: 600px;
+  width: 100%;
+  gap: 0;
+  padding: 1.5rem;
+  margin: 1rem 2rem;
+  background: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+  font-family: "Segoe UI", Roboto, sans-serif;
+}
+
+h2 {
+  text-align: center;
+  color: #2b6cb0;
+  margin: 0.5rem;
+}
+
+/* Grille principale */
+.inputs {
+  display: flex;
+  flex-wrap: wrap;
+  /* gap: 1rem 2%; */
+  justify-content: space-between;
+}
+
+/* Chaque bloc prend 48% pour avoir 2 par ligne */
+.input-block,
+.block {
+  flex: 0 0 48%;
+  /* 2 par ligne (48% + 2% de gap = 50%) */
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+
+.form-label {
+  /* display: block; */
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  color: #021b47;
+  /* font-size: 60%; */
+  overflow: hidden;
+}
+
+/* Forcer les inputs et select à prendre 100% largeur de leur bloc */
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.4rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  background-color: #f7fafc;
+  transition: border-color 0.3s ease;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  /* border-color: #3182ce; */
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+}
+
+input.invalid,
+select.invalid,
+div.invalid {
+  border-color: #e53e3e!important;
+  background-color: #fff5f5;
+}
+
+.error {
+  color: #e53e3e;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Checkbox */
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.checkbox-group input[type="checkbox"] {
+  margin-right: 0.5rem;
+  accent-color: #1976d2;
+  zoom: 1.2;
+  margin: 0;
+}
+
+
+
+/* Style des labels contenant des radios */
+.checkbox-group label {
+  display: flex;
+  gap: 0.3rem;
+  font-weight: normal;
+  /* background-color: #f9f9f9;
+  border: 1px solid #ddd; */
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease-in-out;
+  width: auto;
+}
+
+/* Groupe de radios */
+.radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  /* margin-bottom: 1rem; */
+}
+
+/* Style des labels contenant des radios */
+.radio-group label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-items: center;
+  gap: 0.3rem;
+  font-weight: normal;
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.radio-group input[type="radio"] {
+  accent-color: #1976d2;
+  zoom: 1.25;
+  margin: 0;
+}
+
+/* Focus ou sélection */
+.radio-group input[type="radio"]:checked+label,
+.radio-group label:hover {
+  background-color: #e3f2fd;
+  border-color: #1976d2;
+}
+
+/* Bouton Submit */
+.btn-submit {
+  display: block;
+  margin: 2rem auto 0;
+  padding: 0.75rem 2rem;
+  background-color: #2b6cb0;
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-submit:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background-color: #2c5282;
+}
+
+/* Responsive mobile (1 champ par ligne en dessous de 768px) */
+/* @media (max-width: 768px) {
+    .input-block,
+    .block,
+    .others-input-block {
+      flex: 0 0 100%;
+    }
+  } */
+
+/* Carte */
+app-map-select {
+  display: block;
+  margin: 2rem 0;
+}
+
+
+.input-repeat-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.btn.small {
+  font-size: 0.85rem;
+  padding: 0.2rem 0.6rem;
+}
+
+.danger-small{
+  margin: 0;
+  padding: 0px 2px;
+  border-radius: 50%;
+}
+
+.success-small{
+  margin: 0!important;
+  padding: 0px 2px!important;
+  height: 20px!important;
+  width: auto!important;
+  border-radius: 5%!important;
+  margin-bottom: 25px!important;
+  /* background-color: #003fac!important; */
+  border: 1px dashed #003fac!important;
+  color: #003fac!important;
+  /* color: #ffffff!important; */
+}

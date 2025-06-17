@@ -1,0 +1,195 @@
+
+  <app-navbar></app-navbar>
+  
+
+  <div *ngIf="this.chws$.length > 0" class="map-toolbar">
+    <div class="map-controls">
+      <label>
+        <input type="checkbox" [(ngModel)]="viewTogoOnly" (change)="updateMapBounds()"> Centrer
+      </label>
+      <button (click)="zoomToFitAll()">Zoomer</button>
+      <button (click)="showFilterModal = true">Filtrer</button>
+      <button (click)="showOrgUnitFilterModal = true">OrgUnit</button>
+      <button (click)="resetFilters()">X</button>
+    </div>
+
+    <div *ngIf="isLoading" class="loading-overlay">Chargement en cours...</div>
+
+    <div id="globe-overlay" *ngIf="showGlobe" class="globe-container">
+      <img src="assets/img/spinning-globe.gif" alt="Globe animé" />
+    </div>
+  </div>
+
+  <div class="big-map-container">
+    <div id="map" [ngClass]="{ 'world-mode-activated': worldViewAnimated }"></div>
+
+    <div *ngIf="this.chws$.length > 0" class="map-legend">
+      <p><strong>Résumé :</strong></p>
+      <p>ASC affichés : {{ displayedASCCount }}</p>
+      <p>FS affichés : {{ fsMarkers.length }}</p>
+    </div>
+
+    <div *ngIf="this.chws$.length > 0" style="position: absolute; bottom: 0; right: 0; z-index: 9999">
+      <canvas id="ascChart" width="150" height="100"></canvas>
+    </div>
+
+    <div class="modal-backdrop" *ngIf="showFilterModal">
+      <div class="modal">
+        <h3>🎯 Filtres</h3>
+
+        <label><input type="checkbox" [(ngModel)]="showASCValid"> ASC valides</label><br>
+        <label><input type="checkbox" [(ngModel)]="showASCInvalid"> ASC invalides</label><br>
+        <label><input type="checkbox" [(ngModel)]="showFS"> Centres de santé (FS)</label><br>
+
+        <div class="modal-actions">
+          <button (click)="applyFilters()">Appliquer</button>
+          <button (click)="showFilterModal = false; showOrgUnitFilterModal = false;">Fermer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" *ngIf="showOrgUnitFilterModal">
+      <div class="modal">
+        <h3>🎯 Filtres</h3>
+
+        <form #form="ngForm" (ngSubmit)="makeOrgUnitMapFilter(form)" novalidate>
+          <div class="inputs">
+            <!-- Pays -->
+            <div *ngIf="Countries.length > 1 && countries.length === 0 || countries.length > 1" class="input-block">
+              <label [for]="'countries'">Pays :</label>
+              <select style="background: white" [id]="'countries'" [name]="'countries'" [(ngModel)]="chw.country"
+                (ngModelChange)="regionsGenerate($event)" required>
+                <!-- <option [ngValue]="null">-- Sélectionner Pays --</option> -->
+                <option *ngFor="let country of Countries" [ngValue]="country.id">
+                  {{ country.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Region -->
+            <div *ngIf="(Regions.length > 1 && regions.length === 0 || regions.length > 1) && chw.country"
+              class="input-block">
+              <label [for]="'regions'">Region :</label>
+              <select style="background: white" [id]="'regions'" [name]="'regions'" [(ngModel)]="chw.region"
+                (ngModelChange)="districtsGenerate($event)" required>
+                <!-- <option [ngValue]="null">-- Sélectionner Region --</option> -->
+                <option *ngFor="let region of regions" [ngValue]="region.id">
+                  {{ region.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- District -->
+            <div *ngIf="(Districts.length > 1 && districts.length === 0 || districts.length > 1) && chw.region"
+              class="input-block">
+              <label [for]="'districts'">District :</label>
+              <select style="background: white" [id]="'districts'" [name]="'districts'" [(ngModel)]="chw.district"
+                (ngModelChange)="communesGenerate($event)" required>
+                <!-- <option [ngValue]="null">-- Sélectionner District --</option> -->
+                <option *ngFor="let district of districts" [ngValue]="district.id">
+                  {{ district.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- District -->
+            <div *ngIf="(Communes.length > 1 && communes.length === 0 || communes.length > 1) && chw.district"
+              class="input-block">
+              <label [for]="'communes'">Commune :</label>
+              <select style="background: white" [id]="'communes'" [name]="'communes'" [(ngModel)]="chw.commune"
+                (ngModelChange)="hospitalsGenerate($event)" required>
+                <!-- <option [ngValue]="null">-- Sélectionner Commune --</option> -->
+                <option *ngFor="let commune of communes" [ngValue]="commune.id">
+                  {{ commune.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Formation Sanitaire -->
+            <div
+              *ngIf="(HealthCenters.length > 1 && healthCenters.length === 0 || healthCenters.length > 1) && chw.commune"
+              class="input-block">
+              <label [for]="'healthCenters'">Formation Sanitaire :</label>
+              <select style="background: white" [id]="'healthCenters'" [name]="'healthCenters'"
+                [(ngModel)]="chw.healthCenter" required>
+                <!-- <option [ngValue]="null">-- Sélectionner FS --</option> -->
+                <option *ngFor="let healthCenter of healthCenters" [ngValue]="healthCenter.id">
+                  {{ healthCenter.name }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="submit" [disabled]="form.invalid" class="btn-submit">
+              Appliquer le filtre
+            </button>
+
+            <button type="button" (click)="showOrgUnitFilterModal = false; showFilterModal = false;">Fermer</button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+
+<!-- <h4>🗺️ Légende</h4>
+    <ul>
+      <li><img src="assets/img/red-marker.png" width="20"> ASC valide (&lt; 5km)</li>
+      <li><img src="assets/img/yellow-marker.png" width="20"> ASC invalide (&gt;= 5km)</li>
+      <li><img src="assets/img/green-marker.jpg" width="20"> Formation sanitaire (FS)</li>
+      <li><img src="assets/img/user-marker.png" width="20"> Vous êtes ici</li>
+    </ul> -->
+
+<!-- <h4>🎛️ Filtrer par distance</h4>
+    <input type="range" min="0" max="20" step="1" [(ngModel)]="distanceFilter" (change)="refreshASCMarkers()" />
+    <span>Max distance : {{ distanceFilter }} km</span>
+
+    <h4>🔍 Recherche</h4>
+  <input type="text" [(ngModel)]="searchText" (input)="refreshASCMarkers()" placeholder="Nom ASC ou FS" />
+
+  <h4>📊 Statistiques</h4>
+  <div>
+    <canvas id="ascChart" width="200" height="120"></canvas>
+  </div>
+
+  <input type="date" [(ngModel)]="filterDate" (change)="refreshASCMarkers()" />
+
+  <button (click)="exportVisiblePointsGeoJSON()">🌍 Export GeoJSON</button>
+
+    <button (click)="exportVisiblePointsCSV()">📤 Export CSV</button> -->
+
+
+
+<!-- <label>
+        <input type="checkbox" [(ngModel)]="viewWorld" (change)="toggleWorldView()" />
+        🌍 Vue Monde
+      </label>
+
+      <select [(ngModel)]="selectedRegion" (change)="zoomToRegion(selectedRegion)">
+        <option value="">-- Zoomer sur une région --</option>
+        <option *ngFor="let r of regions" [value]="r">{{ r }}</option>
+      </select> -->
+
+
+<!-- <button (click)="locateUser()">📍 Ma position</button> -->
+
+<!-- <label>
+      <input type="checkbox" [(ngModel)]="showFS" (change)="toggleFSMarkers()" />
+      Formation sanitaires
+    </label>
+
+    <label>
+      <input type="checkbox" [(ngModel)]="showASCValid" (change)="refreshASCMarkers()" />
+      ASC Valides
+    </label>
+    <label>
+      <input type="checkbox" [(ngModel)]="showASCInvalid" (change)="refreshASCMarkers()" />
+      ASC Invalides
+    </label> -->
+<!-- <button (click)="clearMap()">🧹 Nettoyer la carte</button> -->
+<!-- <button (click)="exportVisiblePoints()">📤 Exporter points</button> -->
+
+<!-- NOUVEAUX BOUTONS -->

@@ -1,0 +1,23 @@
+{
+    "port": 8080,
+    "server": {
+      "baseDir": "views",
+      "middleware": {
+        "1": null
+      }
+    },
+    "files": ["./views/*.{html,htm,css,js}"],
+    "proxy": {
+      "rules": [
+        {
+          "proxy": {
+            "target": "http://localhost:4200",
+            "pathRewrite": {
+              "^/api": ""
+            }
+          }
+        }
+      ]
+    }
+  }
+  

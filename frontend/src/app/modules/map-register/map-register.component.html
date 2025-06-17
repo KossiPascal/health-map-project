@@ -1,0 +1,294 @@
+
+<app-navbar></app-navbar>
+
+<div class="map-register-container app-container">
+  <h2>Ajouter Localisation</h2>
+
+  <p *ngIf="message" style="font-size: 12px; margin: 2px;">{{ message }}</p>
+
+  <form #form="ngForm" (ngSubmit)="isValidFsLatLng === true ? saveChwMap(form) : saveFsMap(form)" novalidate>
+    <div class="inputs">
+      <!-- Pays -->
+      <div *ngIf="Countries.length > 1 && countries.length === 0 || countries.length > 1"  class="input-block">
+        <label class="form-label" [for]="'countries'">Pays</label>
+        <select style="background: white" [id]="'countries'" [name]="'countries'" [(ngModel)]="chw.countryId" (ngModelChange)="regionsGenerate($event)" required>
+          <!-- <option [ngValue]="null">-- Sélectionner Pays --</option> -->
+          <option *ngFor="let country of Countries" [ngValue]="country.id">
+            {{ country.name }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Region -->
+      <div *ngIf="(Regions.length > 1 && regions.length === 0 || regions.length > 1) && chw.countryId" class="input-block">
+        <label class="form-label" [for]="'regions'">Region</label>
+        <select style="background: white" [id]="'regions'" [name]="'regions'" [(ngModel)]="chw.regionId" (ngModelChange)="districtsGenerate($event)" required>
+          <!-- <option [ngValue]="null">-- Sélectionner Region --</option> -->
+          <option *ngFor="let region of regions" [ngValue]="region.id">
+            {{ region.name }}
+          </option>
+        </select>
+      </div>
+
+      <!-- District -->
+      <div *ngIf="(Districts.length > 1 && districts.length === 0 || districts.length > 1) && chw.regionId" class="input-block">
+        <label class="form-label" [for]="'districts'">District</label>
+        <select style="background: white" [id]="'districts'" [name]="'districts'" [(ngModel)]="chw.districtId" (ngModelChange)="communesGenerate($event)" required>
+          <!-- <option [ngValue]="null">-- Sélectionner District --</option> -->
+          <option *ngFor="let district of districts" [ngValue]="district.id">
+            {{ district.name }}
+          </option>
+        </select>
+      </div>
+
+      <!-- District -->
+      <div *ngIf="(Communes.length > 1 && communes.length === 0 || communes.length > 1) && chw.districtId" class="input-block">
+        <label class="form-label" [for]="'communes'">Commune</label>
+        <select style="background: white" [id]="'communes'" [name]="'communes'" [(ngModel)]="chw.communeId" (ngModelChange)="hospitalsGenerate($event)" required>
+          <!-- <option [ngValue]="null">-- Sélectionner Commune --</option> -->
+          <option *ngFor="let commune of communes" [ngValue]="commune.id">
+            {{ commune.name }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Formation Sanitaire -->
+      <div *ngIf="(HealthCenters.length > 1 && healthCenters.length === 0 || healthCenters.length > 1) && chw.communeId" class="input-block">
+        <label class="form-label" [for]="'healthCenters'">Formation Sanitaire</label>
+        <select style="background: white" [id]="'healthCenters'" [name]="'healthCenters'" [(ngModel)]="chw.healthCenter.id" (ngModelChange)="checkHealthCenterData($event)" required>
+          <!-- <option [ngValue]="null">-- Sélectionner FS --</option> -->
+          <option *ngFor="let healthCenter of healthCenters" [ngValue]="healthCenter.id">
+            {{ healthCenter.name }}
+          </option>
+        </select>
+      </div>
+
+      <div *ngIf="chw.healthCenter.id && isValidFsLatLng === true" class="input-block">
+        <label class="form-label" [for]="'endroits'">Type d'endroit</label>
+        <select style="background: white" [id]="'endroits'" [name]="'endroits'" [(ngModel)]="chw.village.type" required>
+          <!-- <option [ngValue]="null">-- Sélectionner endroit --</option> -->
+          <option *ngFor="let endroit of ['Village','Quartier','Hameaux','Ferme']" [ngValue]="endroit">
+            {{ endroit }}
+          </option>
+        </select>
+      </div>
+
+
+
+      <!-- Distance -->
+      <!-- <div *ngIf="isValidFsLatLng === true" class="input-block">
+        <label class="form-label" for="distance">Distance entre l'ASC et FS (km) :</label>
+        <input id="distance" name="distance" type="number" step="0.01" [(ngModel)]="chw.distanceToFacility" required #distanceInput="ngModel" [class.invalid]="distanceInput.invalid && (distanceInput.dirty || distanceInput.touched)" />
+        <div *ngIf="distanceInput.invalid && (distanceInput.dirty || distanceInput.touched)" class="error">
+          La distance est requise.
+        </div>
+      </div> -->
+
+      <!-- Population -->
+      <div class="input-block" *ngIf="chw.village.type && isValidFsLatLng === true">
+        <label class="form-label" for="population">Population du village</label>
+        <input id="population" name="population" type="number" [(ngModel)]="chw.village.population" required #popInput="ngModel" [class.invalid]="popInput.invalid && (popInput.dirty || popInput.touched)" />
+        <div *ngIf="popInput.invalid && (popInput.dirty || popInput.touched)" class="error">
+          La population est requise.
+        </div>
+      </div>
+
+      <!-- Nom ASC -->
+      <div class="input-block" *ngIf="chw.village.type && isValidFsLatLng === true">
+        <label class="form-label" for="name">Nom et Prénom ASC</label>
+        <input id="name" name="name" type="text" [(ngModel)]="chw.chwFullName" required #nameInput="ngModel" [class.invalid]="nameInput.invalid && (nameInput.dirty || nameInput.touched)" />
+        <div *ngIf="nameInput.invalid && (nameInput.dirty || nameInput.touched)" class="error">
+          Le nom de l'ASC est requis.
+        </div>
+      </div>
+
+
+      <!-- ID  -->
+      <!-- <div class="input-block" *ngIf="chw.village.type && isValidFsLatLng === true && ('Nom '+(chw.village.type =='Ferme' ? 'de la ' : 'du ')+chw.village.type) as villageNameInputLabel">
+        <label class="form-label" for="villageNameInput"> {{ villageNameInputLabel }}</label>
+        <input id="villageNameInput" name="villageName" type="text" [(ngModel)]="chw.village.name" required #villageNameInput="ngModel" [class.invalid]="villageNameInput.invalid && (villageNameInput.dirty || villageNameInput.touched)" />
+        
+        <div *ngIf="villageNameInput.invalid && (villageNameInput.dirty || villageNameInput.touched)" class="error">
+          Le {{ villageNameInputLabel }} est requis.
+        </div>
+      </div> -->
+
+      <ng-container *ngIf="chw.village.type && isValidFsLatLng === true && ('Nom '+(chw.village.type =='Ferme' ? 'de la ' : 'du ')+chw.village.type) as villageNameInputLabel">
+          <ng-container *ngFor="let name of chw.village.names; let i = index; trackBy: trackByIndex" >
+            <div class="input-block" >
+              <label class="form-label" style="color: rgb(1, 83, 1);"> {{ (i == 0 ? '' : 'Autre ') + villageNameInputLabel + (i == 0 ? '' : ' (' + i +')') }}</label>
+              <div style="display: flex;gap: 2px;">
+                <input type="text" name="villageName{{ i }}" [(ngModel)]="chw.village.names[i]" required #villageNameInput="ngModel" [class.invalid]="villageNameInput.invalid && (villageNameInput.dirty || villageNameInput.touched)" />
+
+                <!-- <button type="button" (click)="removeVillageName(i)" *ngIf="chw.village.names.length > 1" class="danger-small">
+                    <i class="fas fa-minus-circle"></i>
+                </button> -->
+              <i (click)="removeVillageName(i)" *ngIf="chw.village.names.length > 1" class="fas fa-minus-circle danger-small"></i>
+
+              </div>
+
+              <div *ngIf="villageNameInput.invalid && (villageNameInput.dirty || villageNameInput.touched)" class="error">Ce champ est requis.</div>
+            </div>
+          </ng-container>
+
+          <button type="button" (click)="addVillageName()" class="success-small">
+              <i class="fas fa-plus-circle"></i> {{ 'Ajouter autre nom '+(chw.village.type =='Ferme' ? 'de la ' : 'du ')+chw.village.type }}
+          </button>
+      </ng-container>
+
+
+
+
+
+
+
+
+      
+    </div>
+
+    <div *ngIf="isValidFsLatLng === true && getFsLocation() as cor">
+      <label class="form-label" for="name">LAT/LNG FS</label>
+      <div>LAT: {{ cor.lat }}  |  LNG: {{ cor.lng }}</div>
+    </div>
+
+
+    <!-- Carte (coordonnées) -->
+    <app-map-select [changed]="resetChanged" [isValidFsLatLng]="isValidFsLatLng" [healthCenter.id]="chw.healthCenter.id" (positionSelected)="onPositionSelected($event)"></app-map-select>
+    
+
+    <!-- Obstacles -->
+    <div *ngIf="isValidFsLatLng === true">
+      <div class="block">
+        <label class="form-label">Quels sont les obstacles entre la FS et l'ASC</label>
+        <div class="checkbox-group" [class.invalid]="isObstableError">
+          <label><input type="checkbox" name="obstacles" [(ngModel)]="chw.obstacles.noObstacle" (change)="onObstacleChange()" /> Aucun obstacle</label>
+          <label><input type="checkbox" name="obstacles" [(ngModel)]="chw.obstacles.mountain" (change)="onObstacleChange()" /> Montagne, Colline</label>
+          <label><input type="checkbox" name="obstacles" [(ngModel)]="chw.obstacles.river" (change)="onObstacleChange()" /> Rivière, Fleuve</label>
+          <label><input type="checkbox" name="obstacles" [(ngModel)]="chw.obstacles.others" (change)="onObstacleChange()" /> Autres Obstacles (à préciser)</label>
+        </div>
+        <!-- Message d'erreur si rien sélectionné -->
+        <div *ngIf="isObstableError" class="error">
+          {{ isObstableErrorMessage }}
+        </div>
+      </div>
+
+      <div *ngIf="chw.obstacles.others === true" class="block">
+        <label class="form-label" for="other_obstacles">Autres obstacles (préciser)</label>
+        <input id="other_obstacles" name="other_obstacles" type="text" 
+          [(ngModel)]="chw.obstacles.otherDetails" 
+          [required]="chw.obstacles.others === true" 
+          #otherObstacleInput="ngModel" 
+          [class.invalid]="otherObstacleInput.invalid && (otherObstacleInput.dirty || otherObstacleInput.touched)"
+        />
+        <div *ngIf="otherObstacleInput.invalid && (otherObstacleInput.dirty || otherObstacleInput.touched)" class="error">
+          Veuillez préciser les autres obstacles.
+        </div>
+      </div>
+    </div>
+
+
+    <!-- 💧 Source d'eau (checkbox) -->
+    <div *ngIf="isValidFsLatLng === true" class="block">
+      <label class="form-label">Y a t-il une source d'eau 💧 dans la localité?</label>
+      <div class="checkbox-group" [class.invalid]="isWaterSourceError">
+        <label><input type="checkbox" name="water_source" [(ngModel)]="chw.village.waterSource.noSource" (change)="onWaterSourceChange()" /> Aucune source d'eau</label>
+        <label><input type="checkbox" name="water_source" [(ngModel)]="chw.village.waterSource.tde" (change)="onWaterSourceChange()" /> TDE</label>
+        <label><input type="checkbox" name="water_source" [(ngModel)]="chw.village.waterSource.borehole" (change)="onWaterSourceChange()" /> Forage</label>
+        <label><input type="checkbox" name="water_source" [(ngModel)]="chw.village.waterSource.waterWell" (change)="onWaterSourceChange()" /> Puit à grand diametre</label>
+        <label><input type="checkbox" name="water_source" [(ngModel)]="chw.village.waterSource.others" (change)="onWaterSourceChange()" /> Autres (à préciser)</label>
+
+        <!-- Message d'erreur si rien sélectionné -->
+        <div *ngIf="isWaterSourceError" class="error">
+          {{ waterSourceErrorMessage }}
+        </div>
+      </div>
+      
+      <div *ngIf="chw.village.waterSource.others === true" class="block">
+        <label class="form-label" for="other_waterSource">Autres Source (préciser)</label>
+        <input id="other_waterSource" name="other_waterSource" type="text" 
+          [(ngModel)]="chw.village.waterSource.otherDetails" 
+          [required]="chw.village.waterSource.others === true" 
+          #otherWaterSourceInput="ngModel"
+          [class.invalid]="otherWaterSourceInput.invalid && (otherWaterSourceInput.dirty || otherWaterSourceInput.touched)"/>
+        <div *ngIf="otherWaterSourceInput.invalid && (otherWaterSourceInput.dirty || otherWaterSourceInput.touched)" class="error">
+          Veuillez préciser les autres Sources
+        </div>
+      </div>        
+    </div>
+
+    <div *ngIf="isValidFsLatLng === true" class="block">
+      <label class="form-label">Y a-t-il une école dans la localité ?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="hasSchool" [(ngModel)]="chw.village.hasSchool" [value]="true" [required]="isValidFsLatLng === true"  #hasSchoolInput="ngModel" /> Oui</label>
+        <label><input type="radio" name="hasSchool" [(ngModel)]="chw.village.hasSchool" [value]="false" /> Non</label>
+      </div>
+      <!-- Erreur si aucun opérateur sélectionné -->
+      <div *ngIf="hasSchoolInput.invalid && (hasSchoolInput.dirty || hasSchoolInput.touched)" class="error">
+        Veuillez sélectionner un choix.
+      </div>
+    </div>
+
+    <div *ngIf="isValidFsLatLng === true" class="block">
+      <label class="form-label">Y a-t-il de l'électricité dans la localité ?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="hasElectricity" [(ngModel)]="chw.village.hasElectricity" [value]="true" [required]="isValidFsLatLng === true"  #hasElectricityInput="ngModel" /> Oui</label>
+        <label><input type="radio" name="hasElectricity" [(ngModel)]="chw.village.hasElectricity" [value]="false" /> Non</label>
+      </div>
+      <!-- Erreur si aucun opérateur sélectionné -->
+      <div *ngIf="hasElectricityInput.invalid && (hasElectricityInput.dirty || hasElectricityInput.touched)" class="error">
+        Veuillez sélectionner un choix.
+      </div>
+    </div>
+
+    <div *ngIf="isValidFsLatLng === true" class="block">
+      <label class="form-label" for="">Y a-t-il la connexion internet dans la localité ?</label>
+      <div class="radio-group">
+        <label><input type="radio" name="hasInternet" [(ngModel)]="chw.village.internet.hasInternet" [value]="true" [required]="isValidFsLatLng === true"  #hasInternetInput="ngModel" /> Oui</label>
+        <label><input type="radio" name="hasInternet" [(ngModel)]="chw.village.internet.hasInternet" [value]="false" /> Non</label>
+      </div>
+        <!-- Erreur si aucun opérateur sélectionné -->
+      <div *ngIf="hasInternetInput.invalid && (hasInternetInput.dirty || hasInternetInput.touched)" class="error">
+        Veuillez sélectionner un choix.
+      </div>
+    </div>
+
+    <!-- 🌐 Opérateur Internet (radio) -->
+    <div *ngIf="isValidFsLatLng === true && chw.village.internet.hasInternet === true">
+      <div class="block">
+        <label class="form-label" for="">Quel opérateur ?</label>
+        <div class="radio-group">
+          <label><input type="radio" name="internetSource" [(ngModel)]="chw.village.internet.source" value="togocel" [required]="chw.village.internet.hasInternet === true" #internetSourceInput="ngModel" /> Togocel</label>
+          <label><input type="radio" name="internetSource" [(ngModel)]="chw.village.internet.source" value="moov"/> Moov</label>
+          <label><input type="radio" name="internetSource" [(ngModel)]="chw.village.internet.source" value="others"/> Autres</label>
+        </div>
+        <!-- Erreur si aucun opérateur sélectionné -->
+        <div *ngIf="internetSourceInput.invalid && (internetSourceInput.dirty || internetSourceInput.touched)" class="error">
+          Veuillez sélectionner un opérateur.
+        </div>
+      </div>
+
+      <div *ngIf="chw.village.internet.source === 'others'" class="block">
+        <label class="form-label" for="otherInternetSource">Autre Opérateur (préciser) :</label>
+        <input id="otherInternetSource" name="otherInternetSource" type="text" 
+          [required]="chw.village.internet.source === 'others'" 
+          [(ngModel)]="chw.village.internet.otherSource" 
+          #otherInternetSourceInput="ngModel" 
+          [class.invalid]="otherInternetSourceInput.invalid && (otherInternetSourceInput.dirty || otherInternetSourceInput.touched)" />
+
+        <div *ngIf="otherInternetSourceInput.invalid && (otherInternetSourceInput.dirty || otherInternetSourceInput.touched)" class="error">
+          Ce champs est requis.
+        </div>
+      </div>
+    </div>
+        
+
+    <p *ngIf="errorMessage" style="color: red; font-size: 12px;">{{ message }}</p>
+
+    <!-- Submit -->
+    <button type="submit" [disabled]="form.invalid || !chw.location.lat || !chw.location.lng" class="btn-submit">
+      Enregistrer {{ isValidFsLatLng === true ? "l'ASC" : ''}} 
+    </button>
+    <br><br>
+
+  </form>
+</div>

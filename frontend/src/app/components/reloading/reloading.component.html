@@ -1,0 +1,17 @@
+<kossi-modal-layout
+  [id]="'update-available'"
+  [modalActionColor]="'warning-back'"
+  [showCloseButton]="true"
+  [modalTitle]="'Mise à jour disponible'"
+  [cancelBtnName]="'Annuler'"
+  [submitBtnName]="'Mettre à jour'"
+  [showBottomElements]="true"
+  [showCancelButton]="true"
+  [reloadApp]="false"
+  [closeAfterSubmited]="false"
+  (onCancel)="close()"
+  (onSubmit)="submit()"
+>
+  <p>{{ 'Une nouvelle mise à jour de l\'application est disponible.\nSouhaitez-vous procéder à la mise àjour?' }}</p>
+</kossi-modal-layout>
+

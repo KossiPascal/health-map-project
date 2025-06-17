@@ -1,0 +1,62 @@
+<div class="map-wrapper">
+  <h3 *ngIf="!isValidFsLatLng && healthCenterId" style="text-align: center;">Localiser la Formation Sanitaire</h3>
+  <!-- Toolbar visible sur desktop uniquement -->
+  <div class="map-toolbar" *ngIf="!isMobile">
+    <input type="text" placeholder="Rechercher un lieu ou code…" (keyup.enter)="searchLocation(searchInput.value)"
+      #searchInput />
+    <button type="button" (click)="useCurrentPosition()" title="Ma position">
+      <i class="fas fa-crosshairs"></i>
+    </button>
+    <select (change)="changeBasemap(getChangeBasemapValue($event))">
+      <option value="streets">Rues</option>
+      <option value="satellite">Satellite</option>
+      <option value="terrain">Relief</option>
+      <option value="humanitarian">Humanitaire</option>
+    </select>
+    <button type="button" class="btn btn-cancel" (click)="clearPosition()" title="Effacer les champs">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+
+  <!-- Carte toujours visible -->
+  <div id="map-select" class="map {{ isMobile ? 'hide-map' : 'show-map'}}"></div>
+
+  <!-- Inputs : PC = édition, Mobile = lecture seule -->
+  <section class="inputs">
+    <ng-container *ngIf="!isMobile; else mobileOutput">
+      <label>
+        Latitude (°)
+        <input type="number" [(ngModel)]="lat" (change)="onManualInput()" step="0.000001" min="-90" max="90" />
+      </label>
+      <label>
+        Longitude (°)
+        <input type="number" [(ngModel)]="lng" (change)="onManualInput()" step="0.000001" min="-180" max="180" />
+      </label>
+      <!-- <label>
+        Altitude (m)
+        <input type="number" [(ngModel)]="altitude" (change)="emitPosition()" step="0.1" />
+      </label>
+      <label>
+        Précision (m)
+        <input type="number" [(ngModel)]="accuracy" (change)="emitPosition()" step="0.1" min="0" />
+      </label> -->
+    </ng-container>
+
+    <!-- Version Mobile -->
+    <ng-template #mobileOutput>
+      <div class="mobile-position">
+        <button [disabled]="isPositionLoading" type="button" class="btn" (click)="useCurrentPosition()">
+          <i *ngIf="isPositionLoading" class="fas fa-sync-alt fa-spin"></i>
+          📍 Capturer ma position
+        </button>
+
+        <div *ngIf="lat && lng && typeof lat == 'number' && typeof lng == 'number'" class="read-only-data">
+          <span><strong>Latitude :</strong> {{ lat || '—' }}</span>
+          <span><strong>Longitude :</strong> {{ lng || '—' }}</span>
+          <!-- <span><strong>Altitude :</strong> {{ altitude || '—' }}</span>
+          <span><strong>Précision :</strong> {{ accuracy || '—' }}</span> -->
+        </div>
+      </div>
+    </ng-template>
+  </section>
+</div>

@@ -1,0 +1,160 @@
+
+
+.small-width {
+  width: 100%;
+  max-width: 400px;
+}
+
+.medium-width {
+  width: 100%;
+  max-width: 600px;
+}
+
+.large-width {
+  width: 100%;
+  max-width: 800px;
+}
+
+.x-large-width {
+  width: 100%;
+  max-width: 1000px;
+}
+
+.xx-large-width {
+  width: 100%;
+  max-width: 1200px;
+}
+
+.xx-large-width {
+  width: 100%;
+  max-width: 1500px;
+}
+
+
+/* Error Message */
+.modal-error {
+  color: #dc3545 !important;
+  margin: 0 !important;
+}
+
+.modaltitle {
+  font-size: 20px!important;
+  font-weight: bold;
+}
+
+.close {
+  font-size: 30px!important;
+  font-weight: bold;
+}
+
+.grey {
+  color: #6c757d !important;
+}
+
+.grey-back {
+  background-color: #6c757d !important;
+  color: #fff !important;
+}
+
+.light {
+  color: rgb(217, 236, 253) !important;
+}
+
+.light-back {
+  background-color: rgb(217, 236, 253) !important;
+  color: #000000 !important;
+  font-weight: bold !important;
+}
+
+.danger {
+  color: #dc3545 !important;
+}
+
+.danger-back {
+  background-color: #dc3545 !important;
+  color: #fff !important;
+  font-weight: bold !important;
+}
+
+.dark-back {
+  background-color: rgb(48, 48, 48) !important;
+  color: #fff !important;
+  font-weight: bold !important;
+}
+
+.info {
+  color: #005bbd !important;
+}
+
+.info-back {
+  background-color: #007bff !important;
+  color: #fff !important;
+  font-weight: bold !important;
+}
+
+.warning {
+  color: #ff8800 !important;
+}
+
+.warning-back {
+  background-color: #ff8800 !important;
+  color: #fff !important;
+  font-weight: bold !important;
+}
+
+.success {
+  color: #00a239 !important;
+}
+
+.success-back {
+  /* background-color: #23ff70 !important; */
+  background-color: #00a239 !important;
+  color: #fff !important;
+  font-weight: bold !important;
+}
+
+/* Flat Button */
+.mat-flat-button {
+  background-color: transparent !important;
+  border: 2px solid #007bff !important;
+  color: #007bff !important;
+  border-radius: 3px !important;
+  padding: 10px 20px !important;
+  font-size: 1rem !important;
+  transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out, border-color 0.3s ease-in-out !important;
+}
+
+.mat-flat-button:hover {
+  background-color: #007bff !important;
+  color: #fff !important;
+  border-color: #007bff !important;
+}
+
+.flat-button {
+  display:flex;
+  padding-left: 30px;
+  padding-right: 30px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

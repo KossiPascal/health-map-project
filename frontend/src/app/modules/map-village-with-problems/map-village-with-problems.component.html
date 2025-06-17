@@ -1,0 +1,128 @@
+<app-navbar></app-navbar>
+
+<div class="dashboard-container app-container">
+    <h2>Liste des village avec des noms qui se ressemblent</h2>
+    <p *ngIf="message" style="font-size: 12px;">{{ message }}</p>
+
+    <table *ngIf="problemVillageList; else noAscData" class="data-table">
+        <thead>
+            <tr>
+                <th [rowSpan]="2">Formation Sanitaire</th>
+                <th [colSpan]="2">Infos Village 1 </th>
+                <th [colSpan]="2">Infos Village 2</th>
+                <th [rowSpan]="2">Raison</th>
+                <th [rowSpan]="2">Action</th>
+            </tr>
+            <tr>
+                <th>Nom Village 1 </th>
+                <th>ASC Village 1 </th>
+                <th>Nom Village 2</th>
+                <th>ASC Village 2 </th>
+            </tr>
+        </thead>
+        <tbody *ngFor="let items of problemVillageList|keyvalue">
+            <tr *ngFor="let pv of items.value; let i = index" class="map-rows">
+                <td *ngIf="i==0" [rowSpan]="items.value.length">{{ pv.a.healthCenter.name }}</td>
+                <td>
+                    {{ pv.a.village.names }}
+                    <div style="display: flex; gap: 20px;justify-content: start;">
+                        <span style="color: rgb(158, 0, 0); cursor: pointer;" (click)="deleteData(pv.a)"
+                            class="fas fa-trash"></span>
+                        <span style="color: rgb(182, 118, 0); cursor: pointer;" (click)="selectData(pv.a)"
+                            class="fas fa-edit"></span>
+                    </div>
+                </td>
+                <td>{{ pv.a.chwFullName }}</td>
+                <td>
+                    {{ pv.b.village.names }}
+                    <div style="display: flex; gap: 20px;justify-content: start;">
+                        <span style="color: rgb(158, 0, 0); cursor: pointer;" (click)="deleteData(pv.b)"
+                            class="fas fa-trash"></span>
+                        <span style="color: rgb(182, 118, 0); cursor: pointer;" (click)="selectData(pv.b)"
+                            class="fas fa-edit"></span>
+                    </div>
+                </td>
+                <td>{{ pv.b.chwFullName }}</td>
+                <td>{{ pv.reason }}</td>
+                <td class="actions">
+                    <!-- <button class="btn btn-edit" (click)="updateDoc(fs)">✏️ Modifier</button> -->
+                    <button class="btn btn-delete" (click)="deleteAll(pv)">🗑️ Supprimer les 2</button>
+                    <!-- <button class="btn btn-dhis2" (click)="MergerData(pv)">🚀 Merger</button> -->
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <ng-template #noAscData>
+        <p class="no-data">Aucune formation sanitaire disponible.</p>
+    </ng-template>
+
+
+    <div class="modal-backdrop" *ngIf="showUpdateModal && selectedChw as chw">
+        <div class="modal">
+            <h3>🎯 Filtres</h3>
+            <form #form="ngForm" (ngSubmit)="updateData(form)" novalidate>
+                <div class="input-block">
+                    <label class="form-label" [for]="'endroits'">Type d'endroit</label>
+                    <select style="background: white" [id]="'endroits'" [name]="'endroits'"
+                        [(ngModel)]="chw.village.type" required>
+                        <!-- <option [ngValue]="null">-- Sélectionner endroit --</option> -->
+                        <option *ngFor="let endroit of ['Village','Quartier','Hameaux','Ferme']" [ngValue]="endroit">
+                            {{ endroit }}
+                        </option>
+                    </select>
+                </div>
+
+                <!-- <div class="input-block"
+                    *ngIf="chw.village.type  && ('Nom '+(chw.village.type =='Ferme' ? 'de la ' : 'du ')+chw.village.type) as villageNameInputLabel">
+                    <label class="form-label" for="villageNameInput"> {{ villageNameInputLabel }}</label>
+                    <input id="villageNameInput" name="villageName" type="text" [(ngModel)]="chw.village.name" required
+                        #villageNameInput="ngModel"
+                        [class.invalid]="villageNameInput.invalid && (villageNameInput.dirty || villageNameInput.touched)" />
+
+                    <div *ngIf="villageNameInput.invalid && (villageNameInput.dirty || villageNameInput.touched)"
+                        class="error">
+                        Le {{ villageNameInputLabel }} est requis.
+                    </div>
+                </div> -->
+
+
+                <div class="input-block" *ngIf="chw.village.type as villageType">
+
+                    <div *ngFor="let name of chw.village.names; let i = index; trackBy: trackByIndex">
+                        <label style="display: block;">{{ (i == 0 ? '' : 'Autre ') + 'Nom ' + (villageType === 'Ferme' ? 'de la ' : 'du ') + villageType }}</label>
+                        <div class="input-repeat-group">
+                            <input type="text" name="villageName{{ i }}" [(ngModel)]="chw.village.names[i]" required #nameInput="ngModel" [class.invalid]="nameInput.invalid && (nameInput.dirty || nameInput.touched)" />
+
+                            <button type="button" (click)="removeVillageName(i)" *ngIf="chw.village.names.length > 1" class="btn danger small">
+                                <i class="fas fa-minus-circle"></i>
+                            </button>
+                        </div>
+
+                        <div *ngIf="nameInput.invalid && (nameInput.dirty || nameInput.touched)" class="error">
+                            Ce champ est requis.
+                        </div>
+                    </div>
+
+                    <button style="width: auto;" type="button" (click)="addVillageName()" class="btn small">
+                        <i class="fas fa-plus-circle"></i> Ajouter un autre nom
+                    </button>
+                </div>
+
+
+
+
+
+
+                <br>
+
+                <div class="modal-actions">
+                    <button type="submit" [disabled]="form.invalid || isSavingProccess">
+                        <i *ngIf="isSavingProccess" class="fas fa-spinner fa-spin"></i> Appliquer
+                    </button>
+                    <button type="button" [disabled]="isSavingProccess"
+                        (click)="showUpdateModal = false;">Fermer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

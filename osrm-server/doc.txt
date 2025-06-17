@@ -1,0 +1,28 @@
+
+wget https://download.geofabrik.de/africa/benin-latest.osm.pbf
+wget https://download.geofabrik.de/africa/togo-latest.osm.pbf
+wget https://download.geofabrik.de/africa/west-africa-latest.osm.pbf
+
+
+# Étape 1 – Extraire la carte
+docker run -t -v "${PWD}:/data" osrm/osrm-backend osrm-extract -p /opt/car.lua /data/benin-latest.osm.pbf
+
+# Étape 2 – Créer le réseau routier
+docker run -t -v "${PWD}:/data" osrm/osrm-backend osrm-partition /data/benin-latest.osrm
+docker run -t -v "${PWD}:/data" osrm/osrm-backend osrm-customize /data/benin-latest.osrm
+
+# Étape 3 – Lancer le serveur
+docker run -t -i -p 5000:5000 -v "${PWD}:/data" osrm/osrm-backend osrm-routed --algorithm mld /data/benin-latest.osrm
+
+# 4. Appeler OSRM en HTTP
+GET http://localhost:5000/route/v1/driving/9.5336,1.2033;6.2139,1.24145?overview=false
+
+
+
+sudo docker compose up --build
+
+sudo docker compose up --force-recreate --build
+
+
+
+

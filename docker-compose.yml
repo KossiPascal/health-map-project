@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  osrm-prepare:
+    image: osrm/osrm-backend
+    container_name: osrm-prepare
+    volumes:
+      - ./osrm-server:/rawdata
+      - ./osrm-server/togo:/data
+    working_dir: /rawdata
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        echo "📥 Vérification du fichier OSM..."
+        if [ ! -f /rawdata/togo-latest.osm.pbf ]; then
+          echo "📥 Téléchargement de la carte du Togo..."
+          wget -O /rawdata/togo-latest.osm.pbf https://download.geofabrik.de/africa/togo-latest.osm.pbf
+        else
+          echo '✅ Fichier déjà présent.'
+        fi
+
+        echo "📦🗺️ Extraction de la carte..."
+        osrm-extract -p /opt/car.lua /rawdata/togo-latest.osm.pbf
+
+        echo "📁 Déplacement des fichiers .osrm vers /data..."
+        mv /rawdata/togo-latest.osrm* /data/
+
+        echo "🧩 Partition de la carte..."
+        osrm-partition /data/togo-latest.osrm
+
+        echo "🎨 Personnalisation de la carte..."
+        osrm-customize /data/togo-latest.osrm
+
+  osrm-server:
+    image: osrm/osrm-backend
+    container_name: osrm-server
+    depends_on:
+      - osrm-prepare
+    volumes:
+      - ./osrm-server/togo:/data
+    ports:
+      - "5000:5000"
+    command: osrm-routed --algorithm mld /data/togo-latest.osrm

@@ -1,0 +1,112 @@
+.danger {
+  background-color: #dc3545 !important;
+  font-weight: bold;
+}
+
+.info {
+  background-color: #003874 !important;
+  font-weight: bold;
+}
+
+.warning {
+  background-color: #824601 !important;
+  font-weight: bold;
+}
+
+.success {
+  background-color: #0d5426 !important;
+  font-weight: bold;
+}
+
+.default {
+  background-color: #323232 !important;
+  font-weight: bold;
+}
+
+
+
+.snackbar-container {
+  position: fixed;
+  right: 10px;
+  /* transform: translateY(-10%); */
+  display: flex;
+  flex-direction: column;
+  align-items: right;
+  gap: 10px; /* Space between snackbars */
+  z-index: 1000;
+}
+
+.snackbar {
+  position: relative;
+  /* min-width: 250px;
+  max-width: 400px; */
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  opacity: 1;
+  /* animation: fadeIn 0.5s ease forwards, fadeOut 0.5s ease forwards 3s; */
+  /* animation: fadeIn 0.8s ease-in forwards, fadeOut 1s ease-out 4s forwards; */
+  animation: fadeIn 0.5s ease-in;
+
+
+}
+
+/* Positions */
+.snackbar-bottom-position {
+  bottom: 20px;
+}
+
+.snackbar-top-position {
+  top: 100px;
+}
+
+/* Appliqué dynamiquement pour le fade-out */
+.fade-out {
+  animation: fadeOut 1s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    /* transform: translateY(0); */
+  }
+  to {
+    opacity: 0;
+    /* transform: translateY(-10px); */
+  }
+}
+
+.snackbar span {
+  flex: 1;
+  margin-right: 10px;
+}
+
+.snackbar button {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 0;
+  margin-left: 10px;
+  outline: none;
+}
+
+.snackbar button:hover {
+  color: #ddd;
+}

@@ -1,0 +1,17 @@
+<div class="login-container">
+  <h2>Connexion</h2>
+  <form (ngSubmit)="login()" #form="ngForm" class="login-form" autocomplete="off">
+    <input [(ngModel)]="username" name="username" placeholder="Nom d'utilisateur" required class="login-input" />
+    <input [(ngModel)]="password" name="password" placeholder="Mot de passe" type="password" required class="login-input" />
+    
+    <button type="submit" [disabled]="form.invalid || loading" class="login-button">
+      Se connecter
+    </button>
+
+    <!-- Zone chargement dynamique -->
+    <div *ngIf="loading" class="loading-indicator">
+      <div class="spinner"></div>
+      <span class="loading-message">{{ currentMessage }}</span>
+    </div>
+  </form>
+</div>

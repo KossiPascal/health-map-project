@@ -1,0 +1,27 @@
+<!-- <div class="modal-backdrop"></div> -->
+
+<div class="absolute-fix-modal-top {{ modalContentWidth }} fadeIn" id="modal-logout-reload">
+  <div class="modal-content">
+    <div class="modal-header {{ modalActionColor }}">
+      <h4 class="modaltitle {{ modalActionColor }}">{{ modalTitle }}</h4>
+      <button *ngIf="showCloseButton == true" type="button" class="close" aria-label="Close" (click)="modalService.close()"
+        data-dismiss="modal">
+        <span>&times;</span>
+        <!-- <span [attr.aria-hidden]="isHidden ? 'true' : null" [attr.inert]="isHidden ? '' : null">&times;</span> -->
+      </button>
+    </div>
+    <div class="modal-body"><ng-content></ng-content></div>
+
+    <div *ngIf="showBottomElements == true" class="modal-footer">
+      <p class="modal-error" *ngIf="error || errorMsg">{{ error||errorMsg }}</p>
+      <button *ngIf="showCancelButton == true" type="button" class="btn grey-back" mat-button
+        [class.disabled]="processing == true" (click)="cancel()" test-id="cancel" data-dismiss="modal">{{ (cancelBtnName
+        || 'Cancel') }}</button>
+
+      <button class="flat-button btn {{ isFlatButton == true ? 'mat-flat-button' : modalActionColor }}" [class.disabled]="processing == true || disableSubmitButton == true" (click)="submit()" color="primary">
+        {{ (submitBtnName || 'Confirm')}}
+        <app-spinner [isLoading]="processing == true"></app-spinner>
+      </button>
+    </div>
+  </div>
+</div>

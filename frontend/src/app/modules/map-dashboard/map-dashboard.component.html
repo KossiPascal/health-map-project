@@ -1,0 +1,128 @@
+<app-navbar></app-navbar>
+
+<div class="dashboard-container app-container">
+  <h2>📊 Tableau de bord</h2>
+
+  <ul class="tab-nav">
+    <li [class.active]="activeTab === 'asc'" (click)="activeTab = 'asc'">👨‍⚕️ Données ASC</li>
+    <li [class.active]="activeTab === 'fs'" (click)="activeTab = 'fs'">🏥 Données Formation Sanitaire</li>
+  </ul>
+
+  <div class="tab-content">
+    <!-- ASC TAB -->
+    <div style="overflow-x: auto; width: 100%;" *ngIf="activeTab === 'asc'">
+      <div *ngIf="ascList.length > 0" class="export-menu">
+        <button (click)="toggleExportMenu('asc')" class="export-btn">⬇ Export ASC</button>
+        <ul *ngIf="activeExportMenu === 'asc'" class="export-options">
+          <li (click)="exportAscToCSV()">📄 Export CSV</li>
+          <li (click)="exportAscToJSON()">🧾 Export JSON</li>
+          <li (click)="exportAscToXLSX()">📊 Export Excel</li>
+          <li (click)="exportAscToPDF()">📑 Export PDF</li>
+          <li (click)="exportAscAllInZip()">📦 Export ZIP</li>
+        </ul>
+      </div>
+
+      <div *ngIf="ascList.length > 0" class="filter-bar">
+        <input type="text" placeholder="Filtrer par village" [(ngModel)]="filter.village" />
+        <select [(ngModel)]="filter.distance">
+          <option value="">Toutes distances</option>
+          <option value="lt5">Distance ≤ 5km</option>
+          <option value="gt5">Distance > 5km</option>
+        </select>
+      </div>
+
+
+
+      <table *ngIf="ascList.length > 0; else noAscData" class="data-table">
+        <thead>
+          <tr>
+            <th>Nom ASC</th>
+            <th>Formation Sanitaire</th>
+            <th>Type</th>
+            <th>Village</th>
+            <th>Distance</th>
+            <th>Population</th>
+            <th>Obstacle</th>
+            <th>Source d'eau</th>
+            <th>Source Internet</th>
+            <th>Ecole</th>
+            <th>Electricité</th>
+            <!-- <th>Action</th> -->
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let asc of filteredAscList" class="map-rows" [class.deleting]="deletingId === asc._id">
+            <td>{{ asc.chwFullName }}</td>
+            <td>{{ asc.healthCenter.name }}</td>
+            <td>{{ asc.village.type }}</td>
+            <td>{{ asc.village.names }}</td>
+            <td *ngIf="fsDistanceToVillage(asc.distanceToFacility) as dist" [ngClass]="dist.meters == 0 ? '' : (dist.kilometers <= 5 ? 'valid' : 'invalid')">
+              {{ dist.readable }}
+            </td>
+            <!-- <td>{{ asc.validity.reason || '—' }}</td> -->
+            <td>{{ asc.village.population }}</td>
+            <td>{{ getObstaclesLabel(asc.obstacles) }}</td>
+            <td>{{ getWaterSourceLabel(asc.village.waterSource) }}</td>
+            <td>{{ getInternet(asc.village.internet) }}</td>
+            <td>{{ asc.village.hasSchool ? 'Oui' : 'Non' }}</td>
+            <td>{{ asc.village.hasElectricity ? 'Oui' : 'Non' }}</td>
+
+            <td class="actions">
+              <!-- <button class="btn btn-edit" (click)="updateDoc(asc)">✏️ Modifier</button> -->
+              <!-- <button class="btn btn-delete" (click)="deleteDoc(asc)">🗑️</button> -->
+              <span style="cursor: pointer; color: red;" class="fas fa-trash" (click)="deleteDoc(asc)"></span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <ng-template #noAscData>
+        <p class="no-data">Aucun ASC disponible.</p>
+      </ng-template>
+    </div>
+
+    <!-- FS TAB -->
+    <div style="overflow-x: auto; width: 100%;" *ngIf="activeTab === 'fs'">
+      <div *ngIf="healthCenterList.length > 0" class="export-menu">
+        <button (click)="toggleExportMenu('fs')" class="export-btn">⬇ Export FS</button>
+        <ul *ngIf="activeExportMenu === 'fs'" class="export-options">
+          <li (click)="exportFsToCSV()">📄 Export CSV</li>
+          <li (click)="exportFsToJSON()">🧾 Export JSON</li>
+          <li (click)="exportFsToXLSX()">📊 Export Excel</li>
+          <li (click)="exportFsToPDF()">📑 Export PDF</li>
+          <li (click)="exportFsAllInZip()">📦 Export ZIP</li>
+        </ul>
+      </div>
+
+      <table *ngIf="healthCenterList.length > 0; else noAscData" class="data-table">
+        <thead>
+          <tr>
+            <!-- <th>ID</th> -->
+            <th>Nom</th>
+            <th>Localisation</th>
+            <th colspan="2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let fs of healthCenterList" class="map-rows" [class.deleting]="deletingId === fs._id">
+            <!-- <td>{{ fs._id }}</td> -->
+            <td>{{ fs.name }}</td>
+            <td [innerHTML]="getLocationLabel(fs.location)"></td>
+            
+            <td>
+              <!-- <button class="btn btn-edit" (click)="updateDoc(fs)">✏️ Modifier</button> -->
+               <span style="color: rgb(121, 0, 0);" class="fas fa-trash" (click)="deleteDoc(fs)"></span>
+              <!-- <button class="btn btn-delete" (click)="deleteDoc(fs)">🗑️ Supprimer</button> -->
+            </td>
+            <td>
+              <button style="padding: 5px 8px!important; font-size: 12px;" class="btn btn-dhis2" (click)="sendToDhid2(fs)">Envoyer_DHIS2</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <ng-template #noAscData>
+        <p class="no-data">Aucune formation sanitaire disponible.</p>
+      </ng-template>
+    </div>
+  </div>
+</div>

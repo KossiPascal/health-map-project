@@ -1,0 +1,49 @@
+{
+  "name": "app-core",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "repository": "https://github.com/KossiPascal/country-chws-map",
+  "engines": {
+    "node": ">=20.11.0",
+    "npm": ">=10.2.4"
+  },
+  "workspaces": [
+    "./shared-libs/*"
+  ],
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/KossiPascal/country-chws-map"
+  },
+  "scripts": {
+    "build-watch": "cd frontend && npm run simple-build -- --watch=true & node ./scripts/watch.js",
+    "dev-backend": "nodemon --watch 'backend' --watch 'views/*.json' --watch 'shared-libs/**/*.ts' backend/src/server.ts -- --allow-cors",
+    "dev-new-backend": "nodemon --watch 'new-backend' --watch 'views/*.json' --watch 'shared-libs/**/*.ts' new-backend/src/server.ts -- --allow-cors",
+    "send-git": "git status && git add . && git status && git commit -m \"Initial Commit\" && git status && git push -u origin main && git status",
+    "clean": "npm cache clean --force",
+    "install-app": "npm install",
+    "install-backend": "cd backend && npm install",
+    "install-new-backend": "cd new-backend && npm install",
+    "install-frontend": "cd frontend && npm install",
+    "server-install": "npm run install-app & npm run install-backend",
+    "install-all": "npm run install-app & npm run install-backend & npm run install-frontend",
+    "start": "npm run clean & npm run dev-backend",
+    "new-start": "npm run clean & npm run dev-new-backend",
+    "update-service-worker": "node scripts/cli updateServiceWorker",
+    "copy-ngsw": "./scripts/copy-ngsw.sh"
+  },
+  "author": "Kossi TSOLEGNAGBO",
+  "license": "ISC",
+  "dependencies": {
+    "gaze": "^1.1.3",
+    "nodemon": "^3.1.0",
+    "pouchdb": "^9.0.0",
+    "ts-node": "^10.9.2",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.4.5"
+  }
+}

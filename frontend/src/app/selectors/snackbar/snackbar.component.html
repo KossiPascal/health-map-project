@@ -1,0 +1,10 @@
+<div class="snackbar-container snackbar-top-position">
+  <div *ngFor="let snackbar of snackbars"
+    [ngClass]="['snackbar', snackbar.color, snackbar.fadeOutClass, snackbar.position]"
+    >
+    <span [innerHTML]="snackbar.msg"></span>
+    <button (click)="closeSnackbar(snackbar)">&times;</button>
+  </div>
+</div>
+
+<!-- [style.animation]="'fadeIn 0.5s ease-in forwards, fadeOut ' + snackbar.duration + 'ms ease-out ' + ((snackbar.duration??3000) - 500) + 'ms forwards'" -->
