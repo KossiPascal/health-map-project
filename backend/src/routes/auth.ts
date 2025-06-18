@@ -212,7 +212,7 @@ router.post("/login", async (req, res) => {
         // orgUnits
       },
       JWT_SECRET!,
-      { expiresIn: "1d" }
+      { expiresIn: "180d" }
     );
 
     // 🍪 Envoi du token en cookie httpOnly
@@ -220,7 +220,7 @@ router.post("/login", async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000 // 1 jour
+      maxAge: 24 * 60 * 60 * 1000 * 180 // 180 jours
     });
     // 🟢 Réponse client
     return res.json({ token, id: user.id, username: user.username, isAdmin, orgUnits: orgUnitsByLevel });
