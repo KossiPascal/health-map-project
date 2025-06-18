@@ -1,0 +1,43 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "nom": "Commune A",
+        "code": "001"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [1.0, 8.5],
+            [1.2, 8.5],
+            [1.2, 8.7],
+            [1.0, 8.7],
+            [1.0, 8.5]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "nom": "Commune B",
+        "code": "002"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [1.3, 8.4],
+            [1.5, 8.4],
+            [1.5, 8.6],
+            [1.3, 8.6],
+            [1.3, 8.4]
+          ]
+        ]
+      }
+    }
+  ]
+}
