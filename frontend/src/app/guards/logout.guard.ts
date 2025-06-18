@@ -9,8 +9,8 @@ export class LogOutGuard implements CanActivate {
 
   canActivate(): Observable<boolean> | boolean {
     if (!this.auth.isLoggedIn) return true;
-    // this.router.navigate(['/map-viewer']);
-    location.href = "/#/map-viewer";
+    this.router.navigate(['/map-viewer']);
+    // location.href = "/#/map-viewer";
     return false;
   }
 }

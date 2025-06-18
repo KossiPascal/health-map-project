@@ -5,9 +5,14 @@ import { BehaviorSubject } from 'rxjs';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { ChwMap, HealthCenterMap, SyncStatus } from '../models/interfaces';
+import { NetworkService } from './network.service';
 // import transform from 'pouchdb-transform';
 
 // PouchDB.plugin(transform);
+
+
+
+
 
 @Injectable({ providedIn: 'root' })
 export class DbService {
@@ -24,13 +29,18 @@ export class DbService {
   private syncCssClass$ = new BehaviorSubject<string>('fa-circle sync-idle');
   private syncCssContainerClass$ = new BehaviorSubject<string>('sync-idle');
 
+  private isOnline = true;
 
   status$ = this.syncStatus$.asObservable();
   cssClass$ = this.syncCssClass$.asObservable();
   cssContainerClass$ = this.syncCssContainerClass$.asObservable();
 
-  constructor(private zone: NgZone, private api: ApiService, private auth: AuthService) {
+  constructor(private zone: NgZone, private api: ApiService, private auth: AuthService, private networkService: NetworkService) {
     this.initDatabases();
+    this.networkService.onlineChanges$.subscribe(status => {
+      this.isOnline = status;
+      //   console.log('🌐 Connexion Internet :', status ? 'En ligne' : 'Hors ligne');
+    });
   }
 
   private async initDatabases(): Promise<void> {
@@ -207,7 +217,7 @@ export class DbService {
 
 
 
-  private unifiedViewDesignWithTypes(types: string[]): { id: string; views: Record<string, { map: string, reduce?: string }>; language:string } {
+  private unifiedViewDesignWithTypes(types: string[]): { id: string; views: Record<string, { map: string, reduce?: string }>; language: string } {
     const designId = '_design/map_views';
 
     // Validation des types
@@ -755,14 +765,13 @@ export class DbService {
   async getAllDocs(type: 'chw' | 'fs' | 'all'): Promise<(ChwMap | HealthCenterMap)[]> {
     const userId = this.auth.userId;
     const isAdmin = this.auth.isAdmin;
-    const isOnline = false; // 🔁 À remplacer par une vraie détection de connectivité si dispo
 
     // Déterminer la valeur de type pour la requête CouchDB
     const dataType = type === 'chw' ? 'chw-map' : type === 'fs' ? 'fs-map' : undefined;
 
     if (isAdmin) {
       // 👑 ADMIN : accès global (local ou remote)
-      if (this.remoteDb && isOnline) {
+      if (this.remoteDb && this.isOnline) {
         // 🛰️ Accès distant
         // const queryOptions: PouchDB.Query.Options = { include_docs: true };
         const result: PouchDB.Query.Response<{}> = await this.remoteDb.query('map_views/by_type', {
@@ -781,7 +790,7 @@ export class DbService {
       if (type === 'all') {
         throw new Error('Type "all" non autorisé pour les utilisateurs non-admin');
       }
-      if (this.remoteDb && isOnline) {
+      if (this.remoteDb && this.isOnline) {
         // 🛰️ Accès distant filtré par [type, owner]
         const result = await this.remoteDb.query('map_views/by_type_and_owner', {
           key: [dataType, userId],
@@ -826,7 +835,6 @@ export class DbService {
   async getChwsByFsId(healthCenterId: string | undefined): Promise<ChwMap[]> {
     const userId = this.auth.userId;
     const isAdmin = this.auth.isAdmin;
-    const isOnline = false; // 🔁 À remplacer par une vraie détection de connectivité si dispo
 
     // Déterminer la valeur de type pour la requête CouchDB
     const dataType = 'chw-map';
@@ -835,7 +843,7 @@ export class DbService {
 
     if (isAdmin) {
       // 👑 ADMIN : accès global (local ou remote)
-      if (this.remoteDb && isOnline) {
+      if (this.remoteDb && this.isOnline) {
         // 🛰️ Accès distant
         const result: { rows: any[] } = await this.remoteDb.query('map_views/by_type_and_parent', {
           key: [dataType, healthCenterId],
@@ -852,7 +860,7 @@ export class DbService {
       }
     } else {
       // 🙋 Utilisateur non-admin : accès restreint à ses propres données
-      if (this.remoteDb && isOnline) {
+      if (this.remoteDb && this.isOnline) {
         // 🛰️ Accès distant filtré par [type, owner]
         const result = await this.remoteDb.query('map_views/by_type_and_parent_and_owner', {
           key: [dataType, healthCenterId, userId],

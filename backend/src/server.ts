@@ -25,14 +25,13 @@ import { PROJECT_FOLDER, SRC_FOLDER } from "./config/env";
 
 import cron from 'node-cron';
 import session from 'express-session';
-import { proxyApiDbMiddleware, proxyDatabaseMiddleware, databaseMiddlewareCheck, proxyOsrmMiddleware } from "./middlewares/proxy.middleware";
+import { proxyApiDbMiddleware, databaseMiddlewareCheck, proxyDatabaseMiddleware, proxyOsrmMiddleware } from "./middlewares/proxy.middleware";
 
 const { NODE_ENV, DHIS2_API_URL, HTTPS_PORT, HTTP_PORT, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST, COUCHDB_DB } = ENV;
 
 
 const SECURE_PORT = parseInt(HTTPS_PORT || "4047");
 const UNSECURE_PORT = parseInt(HTTP_PORT || "8047");
-
 // 🟢 Création du serveur HTTPS
 const HOST = SHOW_ALL_AVAILABLE_HOST ? '0.0.0.0' : 'localhost';
 const PORT = USE_SECURE_PORTS ? SECURE_PORT : UNSECURE_PORT;
@@ -73,21 +72,19 @@ if (NODE_ENV !== 'production') {
     credentials: true
   }));
 
-  // 🔄 Middleware CORS simple pour dev
-  app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-    next();
-  });
+  // // 🔄 Middleware CORS simple pour dev
+  // app.use((req, res, next) => {
+  //   const origin = req.headers.origin;
+  //   if (origin && allowedOrigins.includes(origin)) {
+  //     res.setHeader('Access-Control-Allow-Origin', origin);
+  //   }
+  //   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  //   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  //   next();
+  // });
 } else {
   app.use(cors({ credentials: true }));
 }
-
-
 
 // 🔐 Middlewares
 app.use(session({

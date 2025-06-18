@@ -197,12 +197,14 @@ router.post("/login", async (req, res) => {
     // const unitMap = await fetchAllOrgUnits(headers, userOrgUnitIds, { asMap: true });
     // const region = unitMap.get('A1r42Id3'); // accès direct
 
+    const isAdmin = DHIS2_ADMIN_USERNAMES.includes(user.username || user.name);
+
     // 🔐🧾 Création du token JWT
     const token = jwt.sign(
       {
         id: user.id,
         username: user.username || user.name,
-        isAdmin: DHIS2_ADMIN_USERNAMES.includes(user.username || user.name),
+        isAdmin,
         basicAuth: basicAuth,
         // roles: user.userCredentials.userRoles.map((r: any) => r.id),
         // autorisations: user.userCredentials.userAuthorityGroups,
@@ -221,7 +223,7 @@ router.post("/login", async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000 // 1 jour
     });
     // 🟢 Réponse client
-    return res.json({ token, id: user.id, username: user.username, orgUnits: orgUnitsByLevel });
+    return res.json({ token, id: user.id, username: user.username, isAdmin, orgUnits: orgUnitsByLevel });
 
   } catch (err) {
     // console.error("Erreur de login:", err);

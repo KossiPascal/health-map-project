@@ -2,6 +2,7 @@ import { Component, OnInit } from "@angular/core";
 import { DbService } from "../../services/db.service";
 
 @Component({
+  standalone: false,
     selector: 'app-sync-status',
     template: `<span [class.text-green-500]="online" [class.text-red-500]="!online">
         ● {{ online ? 'Synchronisé' : 'Hors ligne' }}

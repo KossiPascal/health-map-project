@@ -48,7 +48,7 @@ export const ENV = {
         return process.env.IS_DOCKER_RUNNING == 'true' ? 'couchdb' : (process.env.COUCHDB_HOST || 'localhost');
     },
     get COUCHDB_URL() {
-        return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`;
+        return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`.replace(/\/$/, '');
         // return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_USER}:${this.COUCHDB_PASS}@${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`;
     },
 

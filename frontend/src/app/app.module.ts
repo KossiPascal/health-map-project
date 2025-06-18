@@ -24,6 +24,7 @@ import { MapVillageWithProblemsComponent } from "@kossi-modules/map-village-with
 import { environment } from "@kossi-environments/environment";
 import { LogoutConfirmComponent } from "@kossi-modals/logout/logout-confirm.component";
 import { SessionExpiredComponent } from "@kossi-modals/session-expired/session-expired.component";
+import { PlaceholderComponent } from "@kossi-components/placeholder/placeholder.component";
 
 
 @NgModule({
@@ -45,6 +46,7 @@ import { SessionExpiredComponent } from "@kossi-modals/session-expired/session-e
     
   LogoutConfirmComponent,
   SessionExpiredComponent,
+  PlaceholderComponent
   ],
   imports: [
     BrowserModule,
