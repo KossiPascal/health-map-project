@@ -21,7 +21,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
         //     return res.status(401).json({ message: 'Not authenticated with CouchDB session' });
         // }
 
-        const decoded = jwt.verify(token, ENV.JWT_SECRET!); // Remplace par ta clé
+        const decoded = jwt.verify(token, JWT_SECRET!); // Remplace par ta clé
         (req as any).user = decoded; // Tu peux typer mieux si tu veux
 
         next();
