@@ -9,7 +9,7 @@ export const PROJECT_FOLDER_PARENT = path.resolve(PROJECT_FOLDER, '..');
 export const JSON_DB_PATH = path.join(API_FOLDER, 'jsonDb');
 
 
-dotenv.config();
+dotenv.config({ override: true });
 
 if (process.env.NODE_ENV !== 'production' || process.env.IS_DOCKER_RUNNING !== 'true') {
     // Chargement des .env avec priorité (SRC > API > PROJECT)
@@ -31,6 +31,7 @@ if (process.env.NODE_ENV !== 'production' || process.env.IS_DOCKER_RUNNING !== '
 }
 
 export const ENV = {
+    NODE_ENV: process.env.NODE_ENV,
     HTTPS_PORT: process.env.HTTPS_PORT,
     HTTP_PORT: process.env.HTTP_PORT,
     JWT_SECRET: process.env.JWT_SECRET,
@@ -47,7 +48,8 @@ export const ENV = {
         return process.env.IS_DOCKER_RUNNING == 'true' ? 'couchdb' : (process.env.COUCHDB_HOST || 'localhost');
     },
     get COUCHDB_URL() {
-        return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_USER}:${this.COUCHDB_PASS}@${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`;
+        return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`;
+        // return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_USER}:${this.COUCHDB_PASS}@${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`;
     },
 
     get OSRM_HOST() {

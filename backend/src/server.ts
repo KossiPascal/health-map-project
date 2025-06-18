@@ -27,7 +27,7 @@ import { ClientRequest } from "http";
 import cron from 'node-cron';
 import session from 'express-session';
 
-const { OSRM_URL, DHIS2_API_URL, HTTPS_PORT, HTTP_PORT, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST, COUCHDB_PROTOCOL, COUCHDB_DB, COUCHDB_URL, COUCHDB_PORT, COUCHDB_USER, COUCHDB_PASS } = ENV;
+const { NODE_ENV, OSRM_URL, DHIS2_API_URL, HTTPS_PORT, HTTP_PORT, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST, COUCHDB_PROTOCOL, COUCHDB_DB, COUCHDB_URL, COUCHDB_PORT, COUCHDB_USER, COUCHDB_PASS } = ENV;
 
 
 const SECURE_PORT = parseInt(HTTPS_PORT || "4047");
@@ -61,29 +61,33 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
 });
 
 // ✅ Sécurité + Analyse
-app.use(cors({
-  origin: (origin: any, callback: any) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
+if (NODE_ENV !== 'production') {
+  app.use(cors({
+    origin: (origin: any, callback: any) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      console.warn("❌ Origin non autorisée par CORS:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true
+  }));
+
+  // 🔄 Middleware CORS simple pour dev
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
     }
-    console.warn("❌ Origin non autorisée par CORS:", origin);
-    return callback(new Error("Not allowed by CORS"));
-  },
-  credentials: true
-}));
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    next();
+  });
+} else {
+  app.use(cors({ credentials: true }));
+}
 
-// 🔄 Middleware CORS simple pour dev
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-  next();
-});
 
-// app.use(cors());
 
 // 🔐 Middlewares
 app.use(session({
@@ -110,6 +114,7 @@ app.use('/api/db/:dbName/_local/:docId', (req, res, next) => {
   return res.json({ ok: true });
 });
 
+// 🔐 Proxy sécurisé vers CouchDB avec auth et path rewriting
 app.use("/api/db", authMiddleware, createProxyMiddleware({
   target: COUCHDB_URL,
   changeOrigin: true,
@@ -123,26 +128,60 @@ app.use("/api/db", authMiddleware, createProxyMiddleware({
       const authorization = 'Basic ' + Buffer.from(`${COUCHDB_USER}:${COUCHDB_PASS}`).toString('base64');
       proxyReq.setHeader('Content-Type', 'application/json');
       proxyReq.setHeader('Authorization', authorization);
-
     }
   }
 }));
 
-app.use('/database', createProxyMiddleware({
+// 🌐 Proxy direct vers CouchDB sans auth (ex: accès public ou test)
+app.use('/database', authMiddleware, createProxyMiddleware({
   target: COUCHDB_URL,
   changeOrigin: true,
-  // selfHandleResponse: false,
-  secure: COUCHDB_PROTOCOL == 'https',
+  secure: COUCHDB_PROTOCOL === 'https',
+  pathRewrite: (path) => path, // garde le chemin tel quel
+  selfHandleResponse: false,
+  // ✅ Réécriture des en-têtes Location (ex: redirection Fauxton)
+  on: {
+    proxyRes: (proxyRes, req, res) => {
+      const location = proxyRes.headers['location'];
+      if (location && typeof location === 'string') {
+        try {
+          const newURL = new URL(location);
+          // Exemple : http://couchdb:5984/_utils → devient /database/_utils
+          proxyRes.headers['location'] = `${req.protocol}://${req.headers.host}/database${newURL.pathname}`;
+        } catch (err) {
+          console.warn('⚠️ Erreur de réécriture de location:', err);
+        }
+      }
+    }
+  }
 }));
 
-app.use('/osrm', createProxyMiddleware({
+// 🗺️ Proxy vers OSRM (Open Source Routing Machine)
+app.use('/osrm', authMiddleware, createProxyMiddleware({
   target: OSRM_URL,
   changeOrigin: true,
-  // selfHandleResponse: false,
   secure: false,
+  pathRewrite: (path) => path,
+  selfHandleResponse: false,
+  // ✅ Réécriture des en-têtes Location (ex: redirection Fauxton)
+  on: {
+    proxyRes: (proxyRes, req, res) => {
+      const location = proxyRes.headers['location'];
+      if (location && typeof location === 'string') {
+        try {
+          const newURL = new URL(location);
+          // Exemple : http://couchdb:5984/_utils → devient /database/_utils
+          proxyRes.headers['location'] = `${req.protocol}://${req.headers.host}/database${newURL.pathname}`;
+        } catch (err) {
+          console.warn('⚠️ Erreur de réécriture de location:', err);
+        }
+      }
+    }
+  }
 }));
 
-app.use('/api/configs', configsRouter);
+
+app.use('/api/configs', authMiddleware, configsRouter);
 
 // ✅ Static files (avant routes pour éviter catch-all trop tôt)
 app.use(express.static(path.join(PROJECT_FOLDER, 'views')));
@@ -152,7 +191,7 @@ app.use(express.static(path.join(SRC_FOLDER, 'public')));
 app.use("/api/auth", authRoutes);
 
 // 🔁 Met à jour la géométrie (latitude/longitude) d'une unité dans DHIS2
-app.post('/api/update-dhis2/geometry', async (req, res) => {
+app.post('/api/update-dhis2/geometry', authMiddleware, async (req, res) => {
   try {
     const { orgunit, latitude, longitude } = req.body;
 
@@ -215,7 +254,7 @@ app.post('/api/update-dhis2/geometry', async (req, res) => {
 });
 
 // 📏 Distance
-app.get('/api/distance', async (req, res) => {
+app.get('/api/distance', authMiddleware, async (req, res) => {
   const origin = (req.query.origin as string)?.split(',').map(Number);
   const dest = (req.query.destination as string)?.split(',').map(Number);
 
@@ -288,7 +327,7 @@ const sslOptions = {
   if (!allowedOrigins.includes(host1)) allowedOrigins.push(host1);
   ensureDatabaseExists('_users').then(ok => { if (ok) console.log('📦 Base _users prête à l\'emploi'); });
   if (COUCHDB_DB && COUCHDB_DB != '') {
-    ensureDatabaseExists(COUCHDB_DB).then(ok => { if (ok) console.log(`📦 Base ${COUCHDB_DB} prête à l'emploi`);});
+    ensureDatabaseExists(COUCHDB_DB).then(ok => { if (ok) console.log(`📦 Base ${COUCHDB_DB} prête à l'emploi`); });
   }
   if (SHOW_ALL_AVAILABLE_HOST) {
     const interfaces = os.networkInterfaces();

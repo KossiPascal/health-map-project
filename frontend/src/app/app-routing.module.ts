@@ -9,7 +9,7 @@ import { MapVillageWithProblemsComponent } from '@kossi-modules/map-village-with
 import { LogOutGuard } from './guards/logout.guard';
 
 const routes: Routes = [
-  { path: '', redirectTo: 'login', pathMatch: 'full' },
+  // { path: '', redirectTo: 'login', pathMatch: 'full' },
   { path: 'login', component: LoginComponent, canActivate: [LogOutGuard] },
   { path: 'map-viewer', component: MapViewerComponent, canActivate: [AuthGuard] },
   { path: 'map-dashboard', component: MapDashboardComponent, canActivate: [AuthGuard] },

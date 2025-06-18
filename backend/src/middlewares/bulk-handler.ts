@@ -53,8 +53,8 @@ export async function updateDocDistanceAndSaveDocs() {
                 updatedByServerAt: new Date().toISOString(),
               };
             }
-          } catch (err) {
-            console.warn(`⚠️ Erreur de calcul de distance pour doc ${doc._id}`, err);
+          } catch (err:any) {
+            console.warn(`⚠️ Erreur de calcul de distance pour doc ${doc._id}`, err.message);
           }
 
           return undefined; // Skip doc if distance invalid
@@ -69,9 +69,10 @@ export async function updateDocDistanceAndSaveDocs() {
 
     const bulkResponse = await axios.post(`${COUCHDB_URL}/${COUCHDB_DB}/_bulk_docs`, { docs: updatedDocs }, { auth: AUTH });
 
-    console.log(`✅ ${updatedDocs.length} documents mis à jour`, bulkResponse.data);
-  } catch (error) {
-    console.error('❌ Erreur globale updateDocDistanceAndSaveDocs:', error);
+    // console.log(`✅ ${updatedDocs.length} documents mis à jour`, bulkResponse.data);
+    console.log(`✅ ${updatedDocs.length} documents mis à jour`);
+  } catch (error:any) {
+    console.error('❌ Erreur globale updateDocDistanceAndSaveDocs:', error.message);
   }
 }
 

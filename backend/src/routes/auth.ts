@@ -2,6 +2,7 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import axios from 'axios';
 import { ENV } from "../config/env";
+import { authMiddleware } from "../middlewares/auth.middleware";
 
 const router = express.Router();
 const { DHIS2_API_URL, JWT_SECRET, DHIS2_ADMIN_USERNAMES } = ENV;
@@ -229,7 +230,7 @@ router.post("/login", async (req, res) => {
 });
 
 // 🔓 Déconnexion
-router.post("/logout", (req, res) => {
+router.post("/logout", authMiddleware, (req, res) => {
   res.clearCookie("token");
   return res.json({ message: "Déconnecté" });
 });

@@ -29,8 +29,8 @@ services:
 
   backend:
     build:
-      context: .
-      dockerfile: ${PROJECT_FOLDER:-.}/Dockerfile
+      context: ${PROJECT_FOLDER:-.}
+      dockerfile: ./Dockerfile
     container_name: chw-map-app
     depends_on:
       - couchdb
