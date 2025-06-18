@@ -22,12 +22,12 @@ import bodyParser from 'body-parser';
 import { updateDocDistanceAndSaveDocs } from "./middlewares/bulk-handler";
 import { PROJECT_FOLDER, SRC_FOLDER } from "./config/env";
 
-import { createProxyMiddleware } from 'http-proxy-middleware';
-import { ClientRequest } from "http";
+
 import cron from 'node-cron';
 import session from 'express-session';
+import { proxyApiDbMiddleware, proxyDatabaseMiddleware, databaseMiddlewareCheck, proxyOsrmMiddleware } from "./middlewares/proxy.middleware";
 
-const { NODE_ENV, OSRM_URL, DHIS2_API_URL, HTTPS_PORT, HTTP_PORT, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST, COUCHDB_PROTOCOL, COUCHDB_DB, COUCHDB_URL, COUCHDB_PORT, COUCHDB_USER, COUCHDB_PASS } = ENV;
+const { NODE_ENV, DHIS2_API_URL, HTTPS_PORT, HTTP_PORT, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST, COUCHDB_DB } = ENV;
 
 
 const SECURE_PORT = parseInt(HTTPS_PORT || "4047");
@@ -115,70 +115,13 @@ app.use('/api/db/:dbName/_local/:docId', (req, res, next) => {
 });
 
 // 🔐 Proxy sécurisé vers CouchDB avec auth et path rewriting
-app.use("/api/db", authMiddleware, createProxyMiddleware({
-  target: COUCHDB_URL,
-  changeOrigin: true,
-  selfHandleResponse: false,
-  secure: COUCHDB_PROTOCOL == 'https',
-  // pathRewrite:{ [`^/api/db/create/${COUCHDB_DB}`]: `/${COUCHDB_DB}` },
-  pathRewrite: (path, req) => path, // fallback
-  on: {
-    proxyReq: async (proxyReq: ClientRequest, req: any) => {
-      // Forcer le typage pour accéder à req.body
-      const authorization = 'Basic ' + Buffer.from(`${COUCHDB_USER}:${COUCHDB_PASS}`).toString('base64');
-      proxyReq.setHeader('Content-Type', 'application/json');
-      proxyReq.setHeader('Authorization', authorization);
-    }
-  }
-}));
+app.use("/api/db", authMiddleware, proxyApiDbMiddleware);
 
 // 🌐 Proxy direct vers CouchDB sans auth (ex: accès public ou test)
-app.use('/database', authMiddleware, createProxyMiddleware({
-  target: COUCHDB_URL,
-  changeOrigin: true,
-  secure: COUCHDB_PROTOCOL === 'https',
-  pathRewrite: (path) => path, // garde le chemin tel quel
-  selfHandleResponse: false,
-  // ✅ Réécriture des en-têtes Location (ex: redirection Fauxton)
-  on: {
-    proxyRes: (proxyRes, req, res) => {
-      const location = proxyRes.headers['location'];
-      if (location && typeof location === 'string') {
-        try {
-          const newURL = new URL(location);
-          // Exemple : http://couchdb:5984/_utils → devient /database/_utils
-          proxyRes.headers['location'] = `${req.protocol}://${req.headers.host}/database${newURL.pathname}`;
-        } catch (err) {
-          console.warn('⚠️ Erreur de réécriture de location:', err);
-        }
-      }
-    }
-  }
-}));
+app.use('/database', databaseMiddlewareCheck, proxyDatabaseMiddleware);
 
 // 🗺️ Proxy vers OSRM (Open Source Routing Machine)
-app.use('/osrm', authMiddleware, createProxyMiddleware({
-  target: OSRM_URL,
-  changeOrigin: true,
-  secure: false,
-  pathRewrite: (path) => path,
-  selfHandleResponse: false,
-  // ✅ Réécriture des en-têtes Location (ex: redirection Fauxton)
-  on: {
-    proxyRes: (proxyRes, req, res) => {
-      const location = proxyRes.headers['location'];
-      if (location && typeof location === 'string') {
-        try {
-          const newURL = new URL(location);
-          // Exemple : http://couchdb:5984/_utils → devient /database/_utils
-          proxyRes.headers['location'] = `${req.protocol}://${req.headers.host}/database${newURL.pathname}`;
-        } catch (err) {
-          console.warn('⚠️ Erreur de réécriture de location:', err);
-        }
-      }
-    }
-  }
-}));
+app.use('/osrm', proxyOsrmMiddleware);
 
 
 app.use('/api/configs', authMiddleware, configsRouter);
