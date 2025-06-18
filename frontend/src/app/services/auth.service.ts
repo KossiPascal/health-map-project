@@ -56,13 +56,12 @@ export class AuthService {
    * Déconnexion : supprime les données utilisateur et navigue vers /login
    */
   logout() {
-    this.http.post(this.api.apiUrl('/auth/logout'), {}, { withCredentials: true }).subscribe(() => {
-      this.userSubject.next(null);
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      // this.router.navigate(['/login']);
-      location.href = "login";
-    });
+    this.http.post(this.api.apiUrl('/auth/logout'), {}, { withCredentials: true }).subscribe(() => { });
+    this.userSubject.next(null);
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    // this.router.navigate(['/login']);
+    location.href = "login";
   }
 
   /**

@@ -7,13 +7,13 @@ import { LoginComponent } from './modules/login/login.component';
 import { AuthGuard } from './guards/auth.guard';
 import { MapVillageWithProblemsComponent } from '@kossi-modules/map-village-with-problems/map-village-with-problems.component';
 import { LogOutGuard } from './guards/logout.guard';
-import { PlaceholderComponent } from '@kossi-components/placeholder/placeholder.component';
+// import { PlaceholderComponent } from '@kossi-components/placeholder/placeholder.component';
 
 const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
   { path: 'login', component: LoginComponent, canActivate: [LogOutGuard] },
-  { path: 'database', component: PlaceholderComponent }, // composant vierge
-  { path: 'osrm', component: PlaceholderComponent }, // composant vierge
+  // { path: 'database', component: PlaceholderComponent }, // composant vierge
+  // { path: 'osrm', component: PlaceholderComponent }, // composant vierge
   { path: 'map-viewer', component: MapViewerComponent, canActivate: [AuthGuard] },
   { path: 'map-dashboard', component: MapDashboardComponent, canActivate: [AuthGuard] },
   { path: 'map-register', component: MapRegisterComponent, canActivate: [AuthGuard] },

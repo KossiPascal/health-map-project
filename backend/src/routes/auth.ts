@@ -234,7 +234,7 @@ router.post("/login", async (req, res) => {
 });
 
 // 🔓 Déconnexion
-router.post("/logout", authMiddleware, (req, res) => {
+router.post("/logout", (req, res) => {
   res.clearCookie("token");
   return res.json({ message: "Déconnecté" });
 });
