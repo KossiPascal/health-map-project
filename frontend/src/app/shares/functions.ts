@@ -1,4 +1,5 @@
 import { get } from 'fast-levenshtein';
+import { DeviceDetectorService } from 'ngx-device-detector';
 
 /**
  * Calcule la distance entre deux points géographiques avec la formule de Haversine.
@@ -50,63 +51,84 @@ import { get } from 'fast-levenshtein';
 //     }
 // }
 
+export function getDeviceInfo(deviceService: DeviceDetectorService): { isAndroid: boolean, isIOS: boolean, isTablet: boolean, isMobile: boolean, isWindows: boolean, isMac: boolean } {
+  const userAgent = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent.toLowerCase() : '';
+
+  const os = deviceService.os.toLowerCase();
+  const deviceType = deviceService.deviceType;
+
+  const isAndroid = /android/.test(userAgent) || os === 'android';
+  const isIOS = /iphone|ipad|ipod/.test(userAgent) || os === 'ios';
+  const isTablet = /tablet|ipad/.test(userAgent) || deviceType === 'tablet';
+  const isMobile = /mobile/.test(userAgent) || deviceType === 'mobile';
+  const isWindows = /windows/.test(userAgent) || os === 'windows';
+  const isMac = /macintosh|mac os/.test(userAgent) || os === 'mac';
+
+  return { isAndroid, isIOS, isTablet, isMobile, isWindows, isMac };
+}
+
+
+export function isMobileUser(deviceService: DeviceDetectorService): boolean {
+  const { isAndroid, isIOS, isTablet, isMobile } = getDeviceInfo(deviceService);
+  return isAndroid || isIOS || isTablet || isMobile;
+}
 
 
 
 export function notNull(data: any): boolean {
-    return data != '' && data != null && data != undefined && typeof data != undefined && data.length != 0; // && Object.keys(data).length != 0;
-  }
-  
-  export function isNumber(n: any): boolean {
-    return /^-?[\d.]+(?:e-?\d+)?$/.test(n);
-  }
-  
+  return data != '' && data != null && data != undefined && typeof data != undefined && data.length != 0; // && Object.keys(data).length != 0;
+}
+
+export function isNumber(n: any): boolean {
+  return /^-?[\d.]+(?:e-?\d+)?$/.test(n);
+}
+
 
 export function haversineDistance(options: { lat1: number | null; lon1: number | null; lat2: number | null; lon2: number | null }, unit: 'km' | 'm' | 'mi' = 'km'): number {
-    const { lat1, lon1, lat2, lon2 } = options;
+  const { lat1, lon1, lat2, lon2 } = options;
 
-    // Vérifier que les coordonnées ne sont ni null ni undefined
-    if ([lat1, lon1, lat2, lon2].some(coord => coord === null || coord === undefined)) {
-        throw new Error("Les coordonnées ne doivent pas être vides ou null.");
-    }
+  // Vérifier que les coordonnées ne sont ni null ni undefined
+  if ([lat1, lon1, lat2, lon2].some(coord => coord === null || coord === undefined)) {
+    throw new Error("Les coordonnées ne doivent pas être vides ou null.");
+  }
 
-    // Vérifier que les coordonnées sont des nombres valides
-    if ([lat1, lon1, lat2, lon2].some(coord => typeof coord !== 'number' || isNaN(coord))) {
-        throw new Error("Les coordonnées doivent être des nombres valides.");
-    }
+  // Vérifier que les coordonnées sont des nombres valides
+  if ([lat1, lon1, lat2, lon2].some(coord => typeof coord !== 'number' || isNaN(coord))) {
+    throw new Error("Les coordonnées doivent être des nombres valides.");
+  }
 
-    // Vérification des limites géographiques
-    if (
-        lat1! < -90 || lat1! > 90 ||
-        lat2! < -90 || lat2! > 90 ||
-        lon1! < -180 || lon1! > 180 ||
-        lon2! < -180 || lon2! > 180
-    ) {
-        throw new Error("Les coordonnées doivent être comprises dans les limites géographiques (lat: -90..90, lon: -180..180).");
-    }
+  // Vérification des limites géographiques
+  if (
+    lat1! < -90 || lat1! > 90 ||
+    lat2! < -90 || lat2! > 90 ||
+    lon1! < -180 || lon1! > 180 ||
+    lon2! < -180 || lon2! > 180
+  ) {
+    throw new Error("Les coordonnées doivent être comprises dans les limites géographiques (lat: -90..90, lon: -180..180).");
+  }
 
-    const toRad = (value: number) => (value * Math.PI) / 180;
-    const R_km = 6371; // Rayon de la Terre en km
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const R_km = 6371; // Rayon de la Terre en km
 
-    const dLat = toRad(lat2! - lat1!);
-    const dLon = toRad(lon2! - lon1!);
+  const dLat = toRad(lat2! - lat1!);
+  const dLon = toRad(lon2! - lon1!);
 
-    const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRad(lat1!)) * Math.cos(toRad(lat2!)) * Math.sin(dLon / 2) ** 2;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1!)) * Math.cos(toRad(lat2!)) * Math.sin(dLon / 2) ** 2;
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distanceKm = R_km * c;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distanceKm = R_km * c;
 
-    switch (unit) {
-        case 'm':
-            return distanceKm * 1000;
-        case 'mi':
-            return distanceKm * 0.621371;
-        case 'km':
-        default:
-            return distanceKm;
-    }
+  switch (unit) {
+    case 'm':
+      return distanceKm * 1000;
+    case 'mi':
+      return distanceKm * 0.621371;
+    case 'km':
+    default:
+      return distanceKm;
+  }
 }
 
 
@@ -146,16 +168,16 @@ function levenshtein(a: string, b: string): number {
 
 
 
- // let distanceKm = undefined;
+// let distanceKm = undefined;
 
-      // if (lat !== undefined && lng !== undefined && fsLat !== undefined && fsLng !== undefined) {
-      //   const R = 6371;
-      //   const dLat = this.deg2rad(fsLat - lat);
-      //   const dLng = this.deg2rad(fsLng - lng);
-      //   const a = Math.sin(dLat / 2) ** 2 + Math.cos(this.deg2rad(lat)) * Math.cos(this.deg2rad(fsLat)) * Math.sin(dLng / 2) ** 2;
-      //   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      //   distanceKm = R * c;
-      // }
+// if (lat !== undefined && lng !== undefined && fsLat !== undefined && fsLng !== undefined) {
+//   const R = 6371;
+//   const dLat = this.deg2rad(fsLat - lat);
+//   const dLng = this.deg2rad(fsLng - lng);
+//   const a = Math.sin(dLat / 2) ** 2 + Math.cos(this.deg2rad(lat)) * Math.cos(this.deg2rad(fsLat)) * Math.sin(dLng / 2) ** 2;
+//   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+//   distanceKm = R * c;
+// }
 
 
 export function formatDistance(meters: number) {
@@ -199,14 +221,14 @@ function similarity(a: string | string[], b: string | string[]): number {
 
 
 
-export function findSimilarRecords<T=any>(records: T[], nameField:string, parentField:string, threshold: number = 0.9): { a: T; b: T; reason: string }[] {
-  
+export function findSimilarRecords<T = any>(records: T[], nameField: string, parentField: string, threshold: number = 0.9): { a: T; b: T; reason: string }[] {
+
   const results: { a: T; b: T; reason: string }[] = [];
 
   for (let i = 0; i < records.length; i++) {
     for (let j = i + 1; j < records.length; j++) {
-      const a:any = records[i];
-      const b:any = records[j];
+      const a: any = records[i];
+      const b: any = records[j];
 
       const sim = similarity(a[nameField], b[nameField]);
 

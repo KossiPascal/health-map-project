@@ -25,6 +25,7 @@ export interface SnakBarOutPut {
 export interface User {
     id: string;
     isAdmin: boolean;
+    canUpdateDhis2Data: boolean;
     orgUnits: {
         Countries: OrgUnit[];
         Regions: OrgUnit[];
@@ -105,6 +106,10 @@ export interface ChwMap {
     updatedAt: string | undefined;
     updatedBy: string | undefined;
 
+    isSendToDhis2: boolean;
+    sendToDhis2At: string | undefined;
+    sendToDhis2By: string | undefined;
+
     // validity: {
     //     valid: boolean
     //     reason: string | undefined;
@@ -128,6 +133,10 @@ export interface HealthCenterMap {
 
     updatedAt: string | undefined;
     updatedBy: string | undefined;
+
+    isSendToDhis2: boolean;
+    sendToDhis2At: string | undefined;
+    sendToDhis2By: string | undefined;
 }
 
 export interface OrgUnit {

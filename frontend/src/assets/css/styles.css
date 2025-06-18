@@ -1,3 +1,13 @@
+html, body {
+   /* ou 'none' si besoin */
+  overscroll-behavior-y: contain;
+  /* désactive tout overscroll */
+  /* overscroll-behavior: none;  */
+   /* empêche le scroll vertical */
+  /* touch-action: pan-x pan-left pan-right; */
+}
+
+
 body {
     /* display: fex;
     align-items: center;
@@ -212,3 +222,25 @@ button[disabled] {
   pointer-events: none;
   /* Empêche tout événement de clic */
 }
+
+/* @media screen and (orientation:landscape) {
+  body::before {
+    content: 'Veuillez utiliser l’application en mode portrait.';
+    position: fixed;
+    z-index: 9999;
+    background: white;
+    color: black;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5em;
+  }
+
+  #app-root {
+    display: none;
+  }
+} */

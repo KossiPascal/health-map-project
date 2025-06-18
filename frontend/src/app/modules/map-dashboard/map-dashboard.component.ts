@@ -8,6 +8,7 @@ import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
 import { formatDistance } from '@kossi-src/app/shares/functions';
 import { ApiService } from '@kossi-services/api.service';
+import { AuthService } from '@kossi-services/auth.service';
 
 
 
@@ -26,11 +27,13 @@ export class MapDashboardComponent implements OnInit {
   deletingId: string | undefined;
 
   filter = {
-    village: '',
+    fsSendedToDhis2: '',
+    healthCenter: '',
     distance: ''
   };
+  isDhis2Sending: boolean = false;
 
-  constructor(private db: DbService, private api: ApiService) { }
+  constructor(private db: DbService, private api: ApiService, public auth: AuthService) { }
 
   async ngOnInit(): Promise<void> {
     try {
@@ -114,20 +117,31 @@ export class MapDashboardComponent implements OnInit {
 
 
   async sendToDhid2(doc: HealthCenterMap): Promise<void> {
-    alert('Pas encore implémenté, En attente de validation!')
-    if (!doc || !doc._id || !doc.location.lat || !doc.location.lng) {
-      alert('Données manquantes dans Vos paramètres')
-      return;
-    }
-
-    this.api.updateDhis2Geometry({ orgunit: doc._id, latitude: doc.location.lat, longitude: doc.location.lng }).subscribe({
-      next: res => {
-        console.log('✅ Unité mise à jour', res)
-      },
-      error: err => {
-        console.error('❌ Erreur', err)
+    if (this.auth.canUpdateDhis2Data === true) {
+      if (!doc || !doc._id || !doc.location.lat || !doc.location.lng) {
+        alert('Données manquantes dans Vos paramètres')
+        return;
       }
-    });
+      this.isDhis2Sending = true;
+      this.api.updateDhis2Geometry({ orgunit: doc._id, latitude: doc.location.lat, longitude: doc.location.lng }).subscribe({
+        next: async (res) => {
+          doc.isSendToDhis2 = true;
+          doc.sendToDhis2At = new Date().toISOString();
+          doc.sendToDhis2By = this.auth.userId!;
+          const ok = await this.db.createOrUpdateDoc(doc, 'fs');
+          if (ok) {
+            console.log('✅ Unité mise à jour', res);
+          }
+          this.isDhis2Sending = false;
+        },
+        error: err => {
+          console.error('❌ Erreur', err);
+          this.isDhis2Sending = false;
+        }
+      });
+    } else {
+      alert("Vous n'êtes pas authorisé à effectuer cette action")
+    }
   }
 
 
@@ -416,14 +430,22 @@ export class MapDashboardComponent implements OnInit {
 
   get filteredAscList(): ChwMap[] {
     return this.ascList.filter(asc => {
-      const matchVillage = this.filter.village === '' || asc.village.names.join(' | ').toLowerCase().includes(this.filter.village.toLowerCase());
+      const matchhealthCenter = this.filter.healthCenter === '' || asc.healthCenter.name?.toLowerCase().includes(this.filter.healthCenter.toLowerCase());
       const matchDistance = this.filter.distance === ''
         || (this.filter.distance === 'lt5' && asc.distanceToFacility <= 5)
         || (this.filter.distance === 'gt5' && asc.distanceToFacility > 5);
-      return matchVillage && matchDistance;
+      return matchhealthCenter && matchDistance;
     });
   }
 
+  get filteredFsList(): HealthCenterMap[] {
+    return this.healthCenterList.filter(fs => {
+      const matchFs = this.filter.fsSendedToDhis2 === ''
+        || (this.filter.fsSendedToDhis2 === 'yes' && fs.isSendToDhis2 == true)
+        || (this.filter.fsSendedToDhis2 === 'no' && fs.isSendToDhis2 != true);
+      return matchFs;
+    });
+  }
 
   convertToCSV<T>(data: T[]): string {
     if (!data || data.length === 0) return '';

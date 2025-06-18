@@ -23,7 +23,7 @@
       </div>
 
       <div *ngIf="ascList.length > 0" class="filter-bar">
-        <input type="text" placeholder="Filtrer par village" [(ngModel)]="filter.village" />
+        <input type="text" placeholder="Filtrer par FS" [(ngModel)]="filter.healthCenter" />
         <select [(ngModel)]="filter.distance">
           <option value="">Toutes distances</option>
           <option value="lt5">Distance ≤ 5km</option>
@@ -94,6 +94,14 @@
         </ul>
       </div>
 
+      <div *ngIf="healthCenterList.length > 0" class="filter-bar">
+        <select [(ngModel)]="filter.fsSendedToDhis2">
+          <option value="">Toutes Formation Sanitaire</option>
+          <option value="yes">Déja Envoyé au Dhis2</option>
+          <option value="no">Non encore envoyé au Dhis2</option>
+        </select>
+      </div>
+
       <table *ngIf="healthCenterList.length > 0; else noAscData" class="data-table">
         <thead>
           <tr>
@@ -104,7 +112,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let fs of healthCenterList" class="map-rows" [class.deleting]="deletingId === fs._id">
+          <tr *ngFor="let fs of filteredFsList" class="map-rows" [class.deleting]="deletingId === fs._id">
             <!-- <td>{{ fs._id }}</td> -->
             <td>{{ fs.name }}</td>
             <td [innerHTML]="getLocationLabel(fs.location)"></td>
@@ -115,7 +123,14 @@
               <!-- <button class="btn btn-delete" (click)="deleteDoc(fs)">🗑️ Supprimer</button> -->
             </td>
             <td>
-              <button style="padding: 5px 8px!important; font-size: 12px;" class="btn btn-dhis2" (click)="sendToDhid2(fs)">Envoyer_DHIS2</button>
+              <strong style="color: green;" *ngIf="fs.isSendToDhis2 == true">Déja dans DHIS2 </strong> 
+              <button 
+                [disabled]="isDhis2Sending || !auth.canUpdateDhis2Data" 
+                style="padding: 5px 8px!important; font-size: 12px;" 
+                class="btn {{ fs.isSendToDhis2 == true ? 'btn-dhis2-send' : 'btn-dhis2' }}" 
+                (click)="sendToDhid2(fs)">
+                  {{ fs.isSendToDhis2 == true ? 'Mise à jour Dhis2' : 'Envoyer_DHIS2'}}
+              </button>
             </td>
           </tr>
         </tbody>

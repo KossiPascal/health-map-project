@@ -1,4 +1,24 @@
-.navbar1, .navbar2 {
+.nav-container {
+  /* width: 100vw;
+  min-width: 300px;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  justify-items: center; */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #fff;
+  border-bottom: 1px solid #ddd;
+}
+
+
+
+
+.navbar1,
+.navbar2 {
   /* position: fixed;
   top: 0;
   left: 0; */
@@ -6,18 +26,22 @@
   justify-content: space-between;
   align-items: center;
   background-color: #fff;
-  border-bottom: 1px solid #ddd;
+  /* border-bottom: 1px solid #ddd; */
   font-family: 'Segoe UI', sans-serif;
   flex-wrap: wrap;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   font-size: 14px;
   /* width: 100vw; */
+  /* width: 100%; */
+  width: 100%;
+
+  max-width: 1200px;
+  padding: 0.2rem 0.8rem;
 }
 
 .navbar1 {
   margin: 0;
-  height: 40px;
-  padding: 0.1rem 0.5rem;
+  height: 45px;
 }
 
 .navbar2 {
@@ -27,10 +51,12 @@
 }
 
 .toggle-menu {
+  margin-right: 5px;
   position: relative;
   /* display: inline-block; */
   /* margin-bottom: 1rem; */
 }
+
 .menu-options {
   position: absolute;
   top: 110%;
@@ -50,6 +76,7 @@
   width: 185px;
   gap: 10px;
 }
+
 .menu-options button {
   width: 100%;
 }
@@ -64,7 +91,8 @@
   background-color: #f0f0f0;
 } */
 
-.nav-left, .nav-right {
+.nav-left,
+.nav-right {
   display: flex;
   align-items: center;
   /* gap: 1rem; */
@@ -75,7 +103,8 @@
   gap: 1rem;
 } */
 
-.navbar1 a,.navbar2 a {
+.navbar1 a,
+.navbar2 a {
   display: flex;
   align-items: center;
   /* gap: 0.2rem; */
@@ -90,12 +119,14 @@
   border: 1px dashed #7c7c7c;
 }
 
-.navbar1 a:hover, .navbar2 a:hover {
+.navbar1 a:hover,
+.navbar2 a:hover {
   background-color: #f5f5f5;
   color: #007bff;
 }
 
-.navbar1 a.active, .navbar2 a.active {
+.navbar1 a.active,
+.navbar2 a.active {
   /* background-color: #007bff; */
   /* color: #fff; */
   color: #007bff;
@@ -103,10 +134,23 @@
   border: 1px dashed #007bff;
 }
 
-.navbar1 a.active i, .navbar2 a.active i {
+.navbar1 a.active i,
+.navbar2 a.active i {
   /* color: #fff; */
   color: #007bff;
 }
+
+.ih-logo {
+  height: 40px;
+  margin-right: 8px
+}
+
+.togo-logo {
+  height: 50px;
+  margin-right: 10px;
+  z-index: 999;
+}
+
 
 .toggle-link {
   cursor: pointer;
@@ -186,12 +230,12 @@
 .status {
   display: inline-flex;
   align-items: center;
-  padding: 0;
-  margin: 0px 10px 0px 0px!important;
+  padding: 0px 4px;
+  margin: 0px 10px 0px 0px !important;
   font-weight: 600;
   font-size: 0.7rem;
   border-radius: 1.25rem;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   user-select: none;
   cursor: default;
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -218,11 +262,25 @@
 }
 
 @keyframes pulseGreen {
-  0%, 100% { box-shadow: 0 0 5px 2px rgba(21, 87, 36, 0.4); }
-  50% { box-shadow: 0 0 10px 4px rgba(21, 87, 36, 0.7); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px 2px rgba(21, 87, 36, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 10px 4px rgba(21, 87, 36, 0.7);
+  }
 }
 
 @keyframes pulseRed {
-  0%, 100% { box-shadow: 0 0 5px 2px rgba(114, 28, 36, 0.4); }
-  50% { box-shadow: 0 0 10px 4px rgba(114, 28, 36, 0.7); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px 2px rgba(114, 28, 36, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 10px 4px rgba(114, 28, 36, 0.7);
+  }
 }

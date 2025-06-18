@@ -89,6 +89,11 @@ export class AuthService {
     return user?.isAdmin == true;
   }
 
+  get canUpdateDhis2Data(): boolean {
+    const user = this.currentUser;
+    return user?.canUpdateDhis2Data == true;
+  }
+
 
   get userIdName(): { id: string, name: string } | null {
     const user = this.currentUser;

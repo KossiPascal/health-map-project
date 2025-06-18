@@ -86,4 +86,8 @@ export class NavbarComponent implements OnInit {
         this.db.syncLoop();
     }
 
+    reloadApp(): void {
+        window.location.reload();
+    }
+
 }

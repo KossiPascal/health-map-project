@@ -30,6 +30,11 @@ if (process.env.NODE_ENV !== 'production' || process.env.IS_DOCKER_RUNNING !== '
     }
 }
 
+const trimData = (data: any): string[] => {
+    const dt: string = (data || '').trim().replaceAll(' ', '').replaceAll(';', ',');
+    return dt.split(',').filter(d => d && d != '')
+}
+
 export const ENV = {
     NODE_ENV: process.env.NODE_ENV,
     HTTPS_PORT: process.env.HTTPS_PORT,
@@ -67,10 +72,9 @@ export const ENV = {
     SHOW_ALL_AVAILABLE_HOST: process.env.SHOW_ALL_AVAILABLE_HOST == 'true',
 
     DHIS2_API_URL: process.env.DHIS2_API_URL,
-    DHIS2_ADMIN_USERNAMES: (process.env.DHIS2_ADMIN_USERNAMES || '').split(','),
+    DHIS2_ADMIN_USERNAMES: trimData(process.env.DHIS2_ADMIN_USERNAMES),
+    DHIS2_CAN_UPDATE_ORGUNIT_USERNAMES: trimData(process.env.DHIS2_CAN_UPDATE_ORGUNIT_USERNAMES),
 
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
     ORS_API_KEY: process.env.ORS_API_KEY,
 };
-
-

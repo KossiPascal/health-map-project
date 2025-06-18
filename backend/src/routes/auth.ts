@@ -5,7 +5,7 @@ import { ENV } from "../config/env";
 import { authMiddleware } from "../middlewares/auth.middleware";
 
 const router = express.Router();
-const { DHIS2_API_URL, JWT_SECRET, DHIS2_ADMIN_USERNAMES } = ENV;
+const { DHIS2_API_URL, JWT_SECRET, DHIS2_ADMIN_USERNAMES, DHIS2_CAN_UPDATE_ORGUNIT_USERNAMES } = ENV;
 
 interface OrgUnit {
   id: string;
@@ -198,6 +198,7 @@ router.post("/login", async (req, res) => {
     // const region = unitMap.get('A1r42Id3'); // accès direct
 
     const isAdmin = DHIS2_ADMIN_USERNAMES.includes(user.username || user.name);
+    const canUpdateDhis2Data = DHIS2_CAN_UPDATE_ORGUNIT_USERNAMES.includes(user.username || user.name);
 
     // 🔐🧾 Création du token JWT
     const token = jwt.sign(
@@ -205,6 +206,7 @@ router.post("/login", async (req, res) => {
         id: user.id,
         username: user.username || user.name,
         isAdmin,
+        canUpdateDhis2Data,
         basicAuth: basicAuth,
         // roles: user.userCredentials.userRoles.map((r: any) => r.id),
         // autorisations: user.userCredentials.userAuthorityGroups,
@@ -223,7 +225,7 @@ router.post("/login", async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000 * 180 // 180 jours
     });
     // 🟢 Réponse client
-    return res.json({ token, id: user.id, username: user.username, isAdmin, orgUnits: orgUnitsByLevel });
+    return res.json({ token, id: user.id, username: user.username, isAdmin, canUpdateDhis2Data, orgUnits: orgUnitsByLevel });
 
   } catch (err) {
     // console.error("Erreur de login:", err);

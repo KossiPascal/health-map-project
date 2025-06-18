@@ -1,12 +1,11 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { NgForm } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
-import { haversineDistance, notNull } from '../../shares/functions';
+import { haversineDistance, isMobileUser, notNull } from '../../shares/functions';
 import { ChwMap, HealthCenterMap, MapLocation, OrgUnit, User } from '../../models/interfaces';
 import { AuthService } from '../../services/auth.service';
 import { from, Subject, takeUntil } from 'rxjs';
 import { DbService } from '../../services/db.service';
-
 
 @Component({
   standalone: false,
@@ -483,7 +482,10 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
       owner: this.chw.owner,
       updatedAt: this.chw.updatedAt,
       updatedBy: this.chw.updatedBy,
-      location: this.chw.location
+      location: this.chw.location,
+      isSendToDhis2: false,
+      sendToDhis2At: undefined,
+      sendToDhis2By: undefined,
     }
 
     const res = await this.db.createOrUpdateDoc(fsData, 'fs')
@@ -564,6 +566,9 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
       owner: undefined,
       updatedAt: undefined,
       updatedBy: undefined,
+      isSendToDhis2: false,
+      sendToDhis2At: undefined,
+      sendToDhis2By: undefined,
     };
   }
 }

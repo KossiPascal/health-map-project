@@ -18,7 +18,7 @@ const routes: Routes = [
   { path: 'map-dashboard', component: MapDashboardComponent, canActivate: [AuthGuard] },
   { path: 'map-register', component: MapRegisterComponent, canActivate: [AuthGuard] },
   { path: 'map-village-matched', component: MapVillageWithProblemsComponent, canActivate: [AuthGuard] },
-  { path: '**', redirectTo: 'map-viewer' }
+  { path: '**', redirectTo: 'map-register' }
 ];
 
 @NgModule({

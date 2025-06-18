@@ -1,7 +1,7 @@
 <div class="map-wrapper">
   <h3 *ngIf="!isValidFsLatLng && healthCenterId" style="text-align: center;">Localiser la Formation Sanitaire</h3>
   <!-- Toolbar visible sur desktop uniquement -->
-  <div class="map-toolbar" *ngIf="!isMobile">
+  <div class="map-toolbar" *ngIf="!isMobile && !isMobileDevice">
     <input type="text" placeholder="Rechercher un lieu ou code…" (keyup.enter)="searchLocation(searchInput.value)"
       #searchInput />
     <button type="button" (click)="useCurrentPosition()" title="Ma position">
@@ -19,11 +19,11 @@
   </div>
 
   <!-- Carte toujours visible -->
-  <div id="map-select" class="map {{ isMobile ? 'hide-map' : 'show-map'}}"></div>
+  <div id="map-select" class="map {{ isMobile || isMobileDevice ? 'hide-map' : 'show-map'}}"></div>
 
   <!-- Inputs : PC = édition, Mobile = lecture seule -->
   <section class="inputs">
-    <ng-container *ngIf="!isMobile; else mobileOutput">
+    <ng-container *ngIf="!isMobile && !isMobileDevice; else mobileOutput">
       <label>
         Latitude (°)
         <input type="number" [(ngModel)]="lat" (change)="onManualInput()" step="0.000001" min="-90" max="90" />

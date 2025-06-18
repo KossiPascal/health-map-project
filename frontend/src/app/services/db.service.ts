@@ -36,11 +36,12 @@ export class DbService {
   cssContainerClass$ = this.syncCssContainerClass$.asObservable();
 
   constructor(private zone: NgZone, private api: ApiService, private auth: AuthService, private networkService: NetworkService) {
-    this.initDatabases();
+
     this.networkService.onlineChanges$.subscribe(status => {
       this.isOnline = status;
       //   console.log('🌐 Connexion Internet :', status ? 'En ligne' : 'Hors ligne');
     });
+    this.initDatabases();
   }
 
   private async initDatabases(): Promise<void> {
@@ -69,6 +70,7 @@ export class DbService {
     this.setupLiveSync();
 
     await this.checkIfSyncNeeded();
+    this.watchLocalChanges();
   }
 
   private async ensureRemoteDbExists(): Promise<void> {
@@ -459,9 +461,6 @@ export class DbService {
 
     // const isValidData = await this.cleanInvalidDocs(this.localDb);
 
-
-
-
     this.liveSyncHandler = await this.localDb.sync(this.remoteDb, {
       live: true,
       retry: true,
@@ -469,6 +468,7 @@ export class DbService {
       query_params: { owner: this.auth.userId }
     })
       .on('change', async (change) => {
+        alert('change')
         // if (!change.change.) {
         //   const updatedDoc = {
         //     ...change.doc,
@@ -656,16 +656,18 @@ export class DbService {
 
   get syncStatusLabel(): string {
     switch (this.currentStatus) {
-      case 'active': return 'Synchronisation en cours';
       case 'paused':
       case 'changed':
       case 'empty': return 'Synchronisation à jour';
-      // case 'changed': return 'Modifications synchronisées';
-      case 'idle': return 'Inactif';
+      
+      case 'active': return 'Synchronisation en cours';
       case 'error': return 'Erreur de synchronisation';
       case 'denied': return 'Accès refusé';
-      case 'needed': return 'Synchronisation requise';
-      default: return 'Statut inconnu';
+
+      case 'idle': 
+      case 'needed':
+      default: return 'Synchronisation requise';
+      // default: return 'Statut inconnu';
     }
   }
   get isActive(): boolean { return this.currentStatus === 'active'; }
@@ -674,26 +676,56 @@ export class DbService {
   get isNeeded(): boolean { return this.currentStatus === 'needed'; }
   get isIdle(): boolean { return this.currentStatus === 'idle'; }
 
+  // private async checkIfSyncNeeded(): Promise<void> {
+  //   try {
+  //     const changes = await this.localDb.changes({
+  //       since: 'now',
+  //       limit: 1,
+  //       include_docs: false
+  //     });
+
+  //     const pendingChanges = changes.results.length > 0;
+  //     if (pendingChanges) {
+  //       // console.warn('[SYNC] Des changements non synchronisés existent');
+  //       this.updateStatus('needed');
+  //     } else {
+  //       this.updateStatus('paused');
+  //     }
+  //   } catch (e) {
+  //     // console.warn('[SYNC] Erreur checkIfSyncNeeded:', e);
+  //     this.updateStatus('error');
+  //   }
+  // }
   private async checkIfSyncNeeded(): Promise<void> {
     try {
-      const changes = await this.localDb.changes({
-        since: 'now',
-        limit: 1,
-        include_docs: false
-      });
+      if (!this.remoteDb) return;
+      const info = await this.localDb.info();
+      const pending = await this.localDb.replicate.to(this.remoteDb, { live: false });
 
-      const pendingChanges = changes.results.length > 0;
-      if (pendingChanges) {
-        // console.warn('[SYNC] Des changements non synchronisés existent');
+      if (pending.docs_written > 0 || pending.docs_read > 0) {
+        // Il y a eu des échanges => des changements existaient
         this.updateStatus('needed');
       } else {
         this.updateStatus('paused');
       }
     } catch (e) {
-      // console.warn('[SYNC] Erreur checkIfSyncNeeded:', e);
+      console.error('[SYNC] Erreur dans checkIfSyncNeeded:', e);
       this.updateStatus('error');
     }
   }
+
+  private watchLocalChanges(): void {
+    this.localDb.changes({
+      since: 'now',
+      live: true,
+      include_docs: true
+    }).on('change', change => {
+      console.log('[WATCH] Local DB changed:', change);
+      this.updateStatus('changed');
+      this.checkIfSyncNeeded();
+    });
+  }
+
 
   // === CRUD ===
   async createOrUpdateDoc(doc: ChwMap | HealthCenterMap, type: 'chw' | 'fs'): Promise<boolean> {

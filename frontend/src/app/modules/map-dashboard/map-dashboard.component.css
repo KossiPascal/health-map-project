@@ -120,6 +120,14 @@ h2 {
   background-color: #2c5282;
 }
 
+.btn-dhis2-send {
+  background-color: #c05600;
+}
+
+.btn-dhis2-send:hover {
+  background-color: #6e3200;
+}
+
 .valid {
   color: #38a169;
   font-weight: bold;

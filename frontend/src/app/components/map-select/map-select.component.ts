@@ -9,8 +9,11 @@ import {
   Output,
   SimpleChanges,
 } from '@angular/core';
+import { isMobileUser } from '@kossi-src/app/shares/functions';
 import * as L from 'leaflet';
 import 'leaflet-gpx';
+import { DeviceDetectorService } from 'ngx-device-detector';
+
 
 @Component({
   standalone: false,
@@ -44,7 +47,7 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
   isMobile = false;
 
   private hasSetInitialView = false;
-  private resizeListener = () => this.detectMobile();
+  private resizeListener = () => this.detectMobileScreen();
 
   isPositionLoading:boolean = false;
 
@@ -55,8 +58,15 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
     humanitarian: 'https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
   };
 
+  constructor(private deviceService: DeviceDetectorService){}
+
+
+  get isMobileDevice(){
+    return isMobileUser(this.deviceService);
+  }
+
   ngOnInit(): void {
-    this.detectMobile();
+    this.detectMobileScreen();
     window.addEventListener('resize', this.resizeListener);
   }
 
@@ -78,12 +88,10 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
     }
   }
 
-  private detectMobile(): void {
+  private detectMobileScreen(): void {
     const width = window.innerWidth;
     const userAgent = navigator.userAgent;
-    this.isMobile =
-      width <= 768 ||
-      /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+    this.isMobile =  width <= 768 || /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
   }
 
   private initMap(): void {
@@ -232,10 +240,11 @@ useCurrentPosition(): void {
 
   console.log("🛰️ Tentative de géolocalisation...");
 
-  navigator.geolocation.getCurrentPosition(
+  // navigator.geolocation.getCurrentPosition(
+  const watchId = navigator.geolocation.watchPosition(
     (pos) => {
       const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-      console.log("✅ Position détectée :", pos.coords);
+      // console.log("✅ Position détectée :", pos.coords);
 
       this.setPosition(latlng, pos.coords.accuracy, pos.coords.altitude ?? undefined);
       this.map.flyTo(latlng, this.zoom);
@@ -245,6 +254,7 @@ useCurrentPosition(): void {
         .openOn(this.map);
 
       this.isPositionLoading = false;
+      navigator.geolocation.clearWatch(watchId); // important !
     },
     (err) => {
       console.warn("❌ Erreur de géolocalisation :", err);
@@ -272,6 +282,7 @@ useCurrentPosition(): void {
       });
 
       this.isPositionLoading = false;
+    navigator.geolocation.clearWatch(watchId);
     },
     {
       enableHighAccuracy: false,

@@ -1,20 +1,20 @@
-import { Component, OnInit } from '@angular/core';
+import { AfterViewInit, Component, OnInit } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { AuthService } from '@kossi-services/auth.service';
 import { UpdateServiceWorkerService } from '@kossi-services/update-service-worker.service';
 
 @Component({
-  standalone:false,
+  standalone: false,
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
-export class AppComponent implements OnInit {
-  isLoggedIn:boolean = false;
+export class AppComponent implements OnInit, AfterViewInit {
+  isLoggedIn: boolean = false;
 
- 
+
   constructor(
-    private auth: AuthService, 
+    private auth: AuthService,
     private router: Router,
     private usw: UpdateServiceWorkerService,
   ) {
@@ -22,8 +22,27 @@ export class AppComponent implements OnInit {
   }
   ngOnInit(): void {
   }
+ngAfterViewInit(): void {
+  // let startY = 0;
 
-    private async initializeComponent(){
+  // window.addEventListener('touchstart', (e: TouchEvent) => {
+  //   if (e.touches.length !== 1) return;
+  //   startY = e.touches[0].clientY;
+  // });
+
+  // window.addEventListener('touchmove', (e: TouchEvent) => {
+  //   const currentY = e.touches[0].clientY;
+  //   const scrollTop = window.scrollY;
+
+  //   // Si l’utilisateur est tout en haut et glisse vers le bas => bloquer
+  //   if (scrollTop === 0 && currentY > startY) {
+  //     e.preventDefault(); // bloque le "pull-to-refresh"
+  //   }
+  // }, { passive: false }); // passive: false est obligatoire pour pouvoir utiliser preventDefault
+}
+
+
+  private async initializeComponent() {
     // window.addEventListener('online', () => this.lSync. initializeSync());
     // window.addEventListener('offline', () => this.lSync.setStatus('offline'));
 
