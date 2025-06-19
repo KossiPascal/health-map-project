@@ -468,7 +468,6 @@ export class DbService {
       query_params: { owner: this.auth.userId }
     })
       .on('change', async (change) => {
-        alert('change')
         // if (!change.change.) {
         //   const updatedDoc = {
         //     ...change.doc,
@@ -659,7 +658,7 @@ export class DbService {
       case 'paused':
       case 'changed':
       case 'empty': return 'Synchronisation à jour';
-      
+
       case 'active': return 'Synchronisation en cours';
       case 'error': return 'Erreur de synchronisation';
       case 'denied': return 'Accès refusé';

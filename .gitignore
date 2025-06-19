@@ -15,6 +15,7 @@ webapp/uploads
 webapp/converted_forms
 webapp/venv
 pythons
+couch
 
 osrm-server/**/*.osrm*
 ./osrm-server/**/*.osrm*
