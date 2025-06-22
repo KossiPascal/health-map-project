@@ -75,8 +75,8 @@ headers = accept, authorization, content-type, origin, referer, x-csrf-token
 ; 👤 Admins (si nécessaire)
 ; ======================
 
-; [admins]
-; ${COUCHDB_USER} = ${COUCHDB_PASSWORD}  ; ⚠️ sera remplacé au démarrage par COUCHDB_USER / COUCHDB_PASSWORD (si variables présentes)
+[admins]
+${COUCHDB_USER} = ${COUCHDB_PASSWORD}  ; ⚠️ sera remplacé au démarrage par COUCHDB_USER / COUCHDB_PASSWORD (si variables présentes)
 
 
 ; [users]
