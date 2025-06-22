@@ -7,7 +7,7 @@ services:
     container_name: chw-map-generate-localini
     user: root
     volumes:
-      - ${PROJECT_FOLDER:-.}/couchdb-config:/output
+      - chw-map-couchdb-config:/output
       - ${PROJECT_FOLDER:-.}/couchdb-config/generate-local-ini.sh:/generate-local-ini.sh
     working_dir: /output
     entrypoint: sh /generate-local-ini.sh
