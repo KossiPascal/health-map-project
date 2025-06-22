@@ -19,6 +19,9 @@ COUCHDB_USER="${COUCHDB_USER:-admin}"
 COUCHDB_PASSWORD="${COUCHDB_PASS:?❌ COUCHDB_PASS doit être défini}"
 COUCHDB_CORS_ORIGINS="${COUCHDB_CORS_ORIGINS:-*}"
 
+COUCHDB_MEMBER_USER="${COUCHDB_MEMBER_USER}"
+COUCHDB_MEMBER_PASS="${COUCHDB_MEMBER_PASS}"
+
 
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 
@@ -72,8 +75,14 @@ headers = accept, authorization, content-type, origin, referer, x-csrf-token
 ; 👤 Admins (si nécessaire)
 ; ======================
 
-[admins]
-${COUCHDB_USER} = ${COUCHDB_PASSWORD}  ; ⚠️ sera remplacé au démarrage par COUCHDB_USER / COUCHDB_PASSWORD (si variables présentes)
+; [admins]
+; ${COUCHDB_USER} = ${COUCHDB_PASSWORD}  ; ⚠️ sera remplacé au démarrage par COUCHDB_USER / COUCHDB_PASSWORD (si variables présentes)
+
+
+; [users]
+; ${COUCHDB_MEMBER_USER} = ${COUCHDB_MEMBER_PASS} 
+
+
 
 EOF
 
