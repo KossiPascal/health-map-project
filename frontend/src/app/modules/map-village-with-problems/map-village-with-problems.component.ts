@@ -60,7 +60,7 @@ export class MapVillageWithProblemsComponent implements OnInit, OnDestroy {
             }
         } catch (err) {
             console.error('Erreur lors du chargement des ASC:', err);
-            alert('Erreur lors du chargement des données des ASC.');
+            // alert('Erreur lors du chargement des données des ASC.');
         }
     }
 

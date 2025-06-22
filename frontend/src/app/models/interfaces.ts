@@ -23,6 +23,7 @@ export interface SnakBarOutPut {
 
 
 export interface User {
+    roles: any;
     id: string;
     isAdmin: boolean;
     canUpdateDhis2Data: boolean;

@@ -1,109 +1,106 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, tap } from 'rxjs';
 import { Router } from '@angular/router';
 import { ApiService } from './api.service';
-import { User } from '../models/interfaces';
+import { UserContextService } from './user-context.service';
+import { Observable, tap } from 'rxjs';
+import { DOCUMENT } from '@angular/common';
+import { CookieService } from 'ngx-cookie-service';
 
 
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private userSubject = new BehaviorSubject<User | null>(this.currentUser);
-  public user$ = this.userSubject.asObservable();
-
-
 
   constructor(
     private http: HttpClient,
-    private router: Router,
-    private api: ApiService
+    // private router: Router,
+    // private readonly db: DbService,
+    private userCtx: UserContextService,
+    private api: ApiService,
+    private readonly cookieService: CookieService,
+    @Inject(DOCUMENT) private readonly document: Document,
   ) { }
 
-  /**
-   * Récupère l'utilisateur courant depuis l'API et met à jour le localStorage.
-   */
-  fetchUser() {
-    this.http.get<User>(this.api.apiUrl('/auth/me'), { withCredentials: true }).subscribe({
-      next: user => {
-        this.userSubject.next(user);
-        localStorage.setItem('user', JSON.stringify(user));
-      },
-      error: () => this.logout()
-    });
-  }
+  // fetchUser() {
+  //   this.http.get<User>(this.api.apiUrl('/auth/me'), { withCredentials: true }).subscribe({
+  //     next: user => {
+  //       this.userSubject.next(user);
+  //       localStorage.setItem('user', JSON.stringify(user));
+  //     },
+  //     error: () => this.logout()
+  //   });
+  // }
 
-  /**
-   * Connexion : envoie les identifiants, stocke le user dans le BehaviorSubject + localStorage
-   */
   login(credentials: { username: string; password: string }) {
-    return this.http.post<User>(this.api.apiUrl('/auth/login'), credentials, { withCredentials: true }).pipe(
-      tap((user) => {
-        this.userSubject.next(user);
-        localStorage.setItem('user', JSON.stringify(user));
-        localStorage.setItem('token', user.token); // facultatif si cookie httpOnly
+    return this.http.post<any>(this.api.apiUrl('/auth/login'), credentials, { withCredentials: true }).pipe(
+      tap((user: { name: string, orgUnits: any }) => {
+        // this.userSubject.next(user);
+        // localStorage.setItem('token', user.token); // facultatif si cookie httpOnly
+        localStorage.setItem('orgUnits', JSON.stringify(user.orgUnits));
       })
     );
   }
 
+  newToken(updateReload: boolean = false): Observable<any> {
+    return this.http.post(this.api.apiUrl('/auth/new-token'), { updateReload }, { withCredentials: true })
+  }
 
+  refreshToken(): Observable<any> {
+    return new Observable<any>((observer) => {
+      this.newToken().subscribe({
+        next: (res: any) => {
+          if (res.status === 200) {
+            observer.next(res);
+            observer.complete();
+          } else {
+            observer.error(new Error('Échec de la mise à jour du token'));
+          }
+        },
+        error: (err: any) => {
+          observer.error(err);
+        }
+      });
+    });
+  }
 
   session(credentials: { username: string; password: string }) {
     return this.http.post(this.api.apiUrl('/api/_session'), credentials, { withCredentials: true }).subscribe();
   }
 
-  /**
-   * Déconnexion : supprime les données utilisateur et navigue vers /login
-   */
-  logout() {
-    this.http.post(this.api.apiUrl('/auth/logout'), {}, { withCredentials: true }).subscribe(() => { });
-    this.userSubject.next(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+  // --- Navigation et login/logout ---
+  navigateToLogin() {
+    console.warn('User must reauthenticate');
+
+    const params = new URLSearchParams();
+    params.append('redirect', this.document.location.href);
+
+    const username = this.userCtx.user?.username;
+    if (username) {
+      params.append('username', username);
+    }
+
+    // Supprimer le cookie JS (non HttpOnly)
+    this.cookieService.delete(this.userCtx.COOKIE_NAME, '/');
+    this.userCtx.clearAllCookies();
+
+    const redirectUrl = `/#/login?${params.toString()}`;
+    window.location.href = redirectUrl;
+
+    // // this.document.location.href = `/${this.db.dbName}/login?${params.toString()}`;
+  }
+
+  async logout() {
+    try {
+      this.http.post(this.api.apiUrl('/auth/logout'), {}, { withCredentials: true }).toPromise();
+    } catch (e: any) {
+      console.warn('Erreur de déconnexion :', e);
+    }
+    this.navigateToLogin();
+    // await this.db.localDb.deleteIndex('/_session');
+    // await this.db.remoteDb.get().delete('/_session');
     // this.router.navigate(['/login']);
-    location.href = "login";
+    // location.href = '/login';
   }
 
-  /**
-   * True si un utilisateur est connecté
-   */
-  get isLoggedIn(): boolean {
-    return !!this.userSubject.value;
-  }
-
-  /**
-   * Récupère le token s'il est stocké (si applicable)
-   */
-  get token(): string | null {
-    return localStorage.getItem('token');
-  }
-
-  get userId(): string | null {
-    const user = this.currentUser;
-    return user?.id ?? null;
-  }
-
-  get isAdmin(): boolean {
-    const user = this.currentUser;
-    return user?.isAdmin == true;
-  }
-
-  get canUpdateDhis2Data(): boolean {
-    const user = this.currentUser;
-    return user?.canUpdateDhis2Data == true;
-  }
-
-
-  get userIdName(): { id: string, name: string } | null {
-    const user = this.currentUser;
-    return user ? { id: user.id, name: user.username } : null;
-  }
-
-  /**
-   * Charge le user depuis localStorage (au démarrage)
-   */
-  get currentUser(): User | null {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
-  }
 }

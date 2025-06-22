@@ -1,22 +1,12 @@
 node_modules
 package-lock.json
-zzzzzzzzz
+android
+couch
+pythons
+z_to_delete
+osrm-server/**/*.osrm*
 .env
 .idea
 .vscode
 .angular
-z_to_delete
-my-test
-old-webviewapp
-old-webapp
-old-api
-webapp/test
-webapp/uploads
-webapp/converted_forms
-webapp/venv
-pythons
-couch
 
-osrm-server/**/*.osrm*
-./osrm-server/**/*.osrm*
-./osrm-server/**/*.osrm*

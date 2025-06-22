@@ -9,10 +9,11 @@ import {
   Output,
   SimpleChanges,
 } from '@angular/core';
-import { isMobileUser } from '@kossi-src/app/shares/functions';
+import { DeviceService } from '@kossi-services/device.service';
+import { GeolocationService } from '@kossi-services/geolocation.service';
+import { NetworkService } from '@kossi-services/network.service';
 import * as L from 'leaflet';
 import 'leaflet-gpx';
-import { DeviceDetectorService } from 'ngx-device-detector';
 
 
 @Component({
@@ -49,7 +50,7 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
   private hasSetInitialView = false;
   private resizeListener = () => this.detectMobileScreen();
 
-  isPositionLoading:boolean = false;
+  isPositionLoading: boolean = false;
 
   readonly tileLayers: Record<string, string> = {
     streets: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -58,11 +59,15 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
     humanitarian: 'https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
   };
 
-  constructor(private deviceService: DeviceDetectorService){}
+  isOnline: boolean = false;
+
+  constructor(private device: DeviceService, private network: NetworkService, private geo: GeolocationService) {
+    this.network.onlineChanges$.subscribe((online) => this.isOnline = online);
+  }
 
 
-  get isMobileDevice(){
-    return isMobileUser(this.deviceService);
+  get isMobileDevice() {
+    return this.device.isMobileDevice;
   }
 
   ngOnInit(): void {
@@ -91,7 +96,7 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
   private detectMobileScreen(): void {
     const width = window.innerWidth;
     const userAgent = navigator.userAgent;
-    this.isMobile =  width <= 768 || /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+    this.isMobile = width <= 768 || /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
   }
 
   private initMap(): void {
@@ -106,7 +111,6 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
     //   this.setPosition(e.latlng);
     // });
     this.map.on('click', this.onMapClick.bind(this));
-
   }
 
   onMapClick(e: L.LeafletMouseEvent): void {
@@ -115,43 +119,43 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
     this.map.flyTo(latlng, this.zoom);
   }
 
-
   changeBasemap(style: string): void {
     if (this.currentTileLayer) {
       this.map.removeLayer(this.currentTileLayer);
     }
-
-    const url = this.tileLayers[style] || this.tileLayers['streets'];
-    this.currentTileLayer = L.tileLayer(url, {
-      maxZoom: 19,
-    }).addTo(this.map);
+    if (this.isOnline) {
+      const url = this.tileLayers[style] || this.tileLayers['streets'];
+      this.currentTileLayer = L.tileLayer(url, {
+        errorTileUrl: '/assets/offline-tile-0.png',
+        maxZoom: 19,
+      }).addTo(this.map);
+    } else {
+      this.currentTileLayer = L.tileLayer('/assets/img/offline-tile-0.png', {
+        tileSize: 256,
+        attribution: 'Vous êtes en mode hors-ligne',
+      }).addTo(this.map);
+    }
   }
 
-  private setInitialView(): void {
-    if (this.hasSetInitialView || !navigator.geolocation) return;
+  private async setInitialView(): Promise<void> {
+    if (this.hasSetInitialView) return;
 
     this.hasSetInitialView = true;
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-        // this.setPosition(latlng, pos.coords.accuracy, pos.coords.altitude??undefined);
-        this.map.flyTo(latlng, this.zoom);
-      },
-      (err) => console.warn('Géolocalisation échouée :', err.message),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    const pos = await this.geo.getCurrentPosition(false);
+    if (pos) {
+      const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+      // this.setPosition(latlng, pos.coords.accuracy, pos.coords.altitude??undefined);
+      this.map.flyTo(latlng, this.zoom);
+    }
   }
 
   private setPosition(latlng: L.LatLng, accuracy?: number, altitude?: number): void {
-
     // if (this.marker) this.map.removeLayer(this.marker);
-
     this.lat = +latlng.lat.toFixed(6);
     this.lng = +latlng.lng.toFixed(6);
     this.accuracy = accuracy ? +accuracy.toFixed(1) : undefined;
     this.altitude = altitude ? +altitude.toFixed(1) : undefined;
-
 
     const userIcon = L.icon({
       iconUrl: 'assets/img/user-marker.png',
@@ -162,10 +166,8 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
     if (!this.marker) {
       this.marker = L.marker(latlng, { draggable: true, icon: userIcon })
         .addTo(this.map)
-
         .bindPopup(`📍 Position définie${accuracy ? ` (±${Math.round(accuracy)}m)` : ''}${altitude ? `, altitude: ${Math.round(altitude)}m` : ''}`)
         .openPopup();
-
       this.marker.on('dragend', () => {
         const newPos = this.marker!.getLatLng();
         this.setPosition(newPos);
@@ -173,12 +175,8 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
     } else {
       this.marker.setLatLng(latlng);
     }
-
     this.emitPosition();
   }
-
-
-
 
   clearPosition(): void {
     this.lat = this.lng = this.accuracy = this.altitude = undefined;
@@ -206,11 +204,9 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
   }
 
   async searchLocation(query: string): Promise<void> {
-    if (!query.trim()) return;
+    if (!query.trim() || !this.isOnline) return;
 
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-      query
-    )}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
 
     try {
       const res = await fetch(url);
@@ -227,50 +223,19 @@ export class MapSelectComponent implements OnInit, AfterViewInit, OnDestroy, OnC
     }
   }
 
-useCurrentPosition(): void {
-  this.isPositionLoading = true;
-
-  if (!navigator.geolocation) {
-    console.warn("🌐 Géolocalisation non supportée par le navigateur.");
-    alert("🚫 Votre navigateur ne supporte pas la géolocalisation.");
-    this.clearPosition();
-    this.isPositionLoading = false;
-    return;
-  }
-
-  console.log("🛰️ Tentative de géolocalisation...");
-
-  // navigator.geolocation.getCurrentPosition(
-  const watchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+  async useCurrentPosition(): Promise<void> {
+    this.isPositionLoading = true;
+    const pos = await this.geo.getCurrentPosition();
+    if (pos) {
       // console.log("✅ Position détectée :", pos.coords);
-
+      const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
       this.setPosition(latlng, pos.coords.accuracy, pos.coords.altitude ?? undefined);
       this.map.flyTo(latlng, this.zoom);
       L.popup()
         .setLatLng(latlng)
         .setContent("📍 Position détectée automatiquement.")
         .openOn(this.map);
-
-      this.isPositionLoading = false;
-      navigator.geolocation.clearWatch(watchId); // important !
-    },
-    (err) => {
-      console.warn("❌ Erreur de géolocalisation :", err);
-
-      const messages: any = {
-        0: "❌ Erreur inconnue de géolocalisation.",
-        1: "⛔ Permission refusée pour accéder à votre position.",
-        2: "📵 Position non disponible (capteur GPS ou réseau absent).",
-        3: "⏳ Délai dépassé pour localiser l'utilisateur.",
-      };
-
-      const msg = messages[err.code] || "❌ Erreur inconnue.";
-      alert(msg + "\nCliquez sur la carte pour définir votre position manuellement.");
-
-      this.clearPosition();
-
+    } else {
       // ➕ Fallback : cliquer sur la carte pour définir la position
       this.map.once('click', (e: L.LeafletMouseEvent) => {
         this.setPosition(e.latlng);
@@ -280,74 +245,9 @@ useCurrentPosition(): void {
           .setContent("📌 Position définie manuellement.")
           .openOn(this.map);
       });
-
-      this.isPositionLoading = false;
-    navigator.geolocation.clearWatch(watchId);
-    },
-    {
-      enableHighAccuracy: false,
-      timeout: 15000,
-      maximumAge: 30000,
     }
-  );
-}
-
-
-
-  // async useCurrentPosition(): Promise<void> {
-  //   if (!navigator.geolocation) {
-  //     console.warn("La géolocalisation n'est pas supportée.");
-  //     this.clearPosition();
-  //     return;
-  //   }
-
-  //   navigator.geolocation.getCurrentPosition(
-  //     (pos) => {
-  //       const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-  //       this.setPosition(latlng, pos.coords.accuracy, pos.coords.altitude ?? undefined);
-  //       this.map.flyTo(latlng, this.zoom);
-  //     },
-  //     (err) => {
-  //       switch (err.code) {
-  //         case err.PERMISSION_DENIED:
-  //           console.warn("Permission refusée pour la géolocalisation.");
-  //           break;
-  //         case err.POSITION_UNAVAILABLE:
-  //           console.warn("Position non disponible (capteurs ou GPS).");
-  //           break;
-  //         case err.TIMEOUT:
-  //           console.warn("Délai dépassé pour obtenir la position.");
-  //           break;
-  //         default:
-  //           console.warn("Erreur inconnue de géolocalisation.");
-  //       }
-  //       this.clearPosition();
-  //     },
-  //     {
-  //       enableHighAccuracy: true,
-  //       timeout: 10000,
-  //       maximumAge: 0,
-  //     }
-  //   );
-  // }
-
-
-
-  // captureMobilePosition() {
-  //   if (navigator.geolocation) {
-  //     navigator.geolocation.getCurrentPosition(
-  //       (pos) => {
-  //         this.lat = +pos.coords.latitude.toFixed(6);
-  //         this.lng = +pos.coords.longitude.toFixed(6);
-  //         this.accuracy = +pos.coords.accuracy.toFixed(1);
-  //         this.altitude = pos.coords.altitude ? +pos.coords.altitude.toFixed(1) : null;
-  //       },
-  //       (err) => alert("Erreur de localisation : " + err.message)
-  //     );
-  //   } else {
-  //     alert("La géolocalisation n'est pas supportée.");
-  //   }
-  // }
+    this.isPositionLoading = false;
+  }
 
   private emitPosition(): void {
     this.positionSelected.emit({
@@ -360,34 +260,5 @@ useCurrentPosition(): void {
 
   getChangeBasemapValue(event: Event): string {
     return (event.target as HTMLSelectElement).value;
-  }
-
-  getBestPosition(maxWait = 2000, targetAccuracy = 200): Promise<GeolocationPosition> {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) return reject(new Error('Géolocalisation non supportée'));
-
-      let bestPos: GeolocationPosition | undefined;
-      const watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          if (!bestPos || pos.coords.accuracy < bestPos.coords.accuracy) {
-            bestPos = pos;
-          }
-          if (pos.coords.accuracy <= targetAccuracy) {
-            navigator.geolocation.clearWatch(watchId);
-            resolve(pos);
-          }
-        },
-        (err) => {
-          navigator.geolocation.clearWatch(watchId);
-          reject(err);
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: maxWait }
-      );
-
-      setTimeout(() => {
-        navigator.geolocation.clearWatch(watchId);
-        bestPos ? resolve(bestPos) : reject(new Error('Aucune position précise'));
-      }, maxWait + 500);
-    });
   }
 }

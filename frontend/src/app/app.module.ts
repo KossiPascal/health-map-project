@@ -1,5 +1,5 @@
 import { HttpClientModule, HTTP_INTERCEPTORS } from "@angular/common/http";
-import { CUSTOM_ELEMENTS_SCHEMA, isDevMode, NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
+import { CUSTOM_ELEMENTS_SCHEMA, NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
 import { BrowserModule } from "@angular/platform-browser";
 import { AppRoutingModule } from "./app-routing.module";
 import { AppComponent } from "./app.component";
@@ -25,6 +25,8 @@ import { environment } from "@kossi-environments/environment";
 import { LogoutConfirmComponent } from "@kossi-modals/logout/logout-confirm.component";
 import { SessionExpiredComponent } from "@kossi-modals/session-expired/session-expired.component";
 import { PlaceholderComponent } from "@kossi-components/placeholder/placeholder.component";
+import { CookieService } from 'ngx-cookie-service';
+import { APP_BASE_HREF, DatePipe } from '@angular/common';
 
 
 @NgModule({
@@ -40,13 +42,11 @@ import { PlaceholderComponent } from "@kossi-components/placeholder/placeholder.
     ReloadingComponent,
     ModalLayoutComponent,
     FixModalLayoutComponent,
-    // LogoutConfirmComponent,
     SnackbarComponent,
     DeviceDetectionComponent,
-    
-  LogoutConfirmComponent,
-  SessionExpiredComponent,
-  PlaceholderComponent
+    LogoutConfirmComponent,
+    SessionExpiredComponent,
+    PlaceholderComponent
   ],
   imports: [
     BrowserModule,
@@ -54,25 +54,19 @@ import { PlaceholderComponent } from "@kossi-components/placeholder/placeholder.
     HttpClientModule,
     ReactiveFormsModule,
     AppRoutingModule,
-    FormsModule,
-
-    // MatSnackBarModule,
     SharedModule,
     ModalModule.forRoot(),
     StoreModule.forRoot({}),
-
-
     ServiceWorkerModule.register('ngsw-worker.js', {
       enabled: environment.production,
-      // enabled: !isDevMode(),
-      // Register the ServiceWorker as soon as the application is stable
-      // or after 30 seconds (whichever comes first).
       registrationStrategy: 'registerWhenStable:30000'
     }),
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA, NO_ERRORS_SCHEMA],
   providers: [
-    { provide: HTTP_INTERCEPTORS, useClass: TokenInterceptor, multi: true }
+    { provide: APP_BASE_HREF, useValue: '/' },
+    CookieService,
+    { provide: HTTP_INTERCEPTORS, useClass: TokenInterceptor, multi: true },
   ],
   bootstrap: [AppComponent]
 

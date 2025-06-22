@@ -2,16 +2,53 @@ version: "3.9"
 
 services:
 
+  init-local-ini:
+    image: curlimages/curl
+    container_name: chw-map-generate-localini
+    user: root
+    volumes:
+      - ${PROJECT_FOLDER:-.}/couchdb-config:/output
+      - ${PROJECT_FOLDER:-.}/couchdb-config/generate-local-ini.sh:/generate-local-ini.sh
+    working_dir: /output
+    entrypoint: sh /generate-local-ini.sh
+    environment:
+      COUCHDB_PORT: ${COUCHDB_PORT:?COUCHDB_PORT must be set}
+      COUCHDB_BIND: ${COUCHDB_BIND:-0.0.0.0}
+      COUCHDB_LOG_LEVEL: ${COUCHDB_LOG_LEVEL:-info}
+      COUCHDB_TIMEOUT: 15552000
+      COUCHDB_USER: ${COUCHDB_USER:-admin}
+      COUCHDB_PASS: ${COUCHDB_PASS:?COUCHDB_PASS must be set}
+      COUCHDB_CORS_ORIGINS: ${COUCHDB_CORS_ORIGINS:-*}
+      PROJECT_FOLDER: ${PROJECT_FOLDER:-.}
+    restart: on-failure
+    env_file:
+      - ./.env  # Chemin vers le fichier .env si nécessaire
+    networks:
+      - chw-map-net
+
+
   # Service CouchDB (exécution)
   couchdb:
     image: couchdb:latest
     container_name: chw-map-couchdb
+    depends_on:
+      init-local-ini:
+        condition: service_completed_successfully
+    command: >
+      sh -c "while [ ! -f /config/init-success ]; do 
+              echo '⏳ En attente de init-local-ini...'; 
+              sleep 1; 
+            done;
+            echo '✅ Initialisation détectée. Démarrage de CouchDB.';
+            /opt/couchdb/bin/couchdb"
     env_file:
       - ./.env  # Chemin vers le fichier .env si nécessaire
     ports:
-      - "${COUCHDB_PORT:-5984}:5984"
+      - "${COUCHDB_PORT:?COUCHDB_PORT must be set}:${COUCHDB_PORT:?COUCHDB_PORT must be set}"
     volumes:
-      - ${COUCHDB_DATA_FOLDER:-./togo-chws-map-data/couchdb}:/opt/couchdb/data
+      - chw-map-couchdb-config:/config
+      - ${COUCHDB_DATA_FOLDER:-../togo-chws-map-data/couchdb}:/opt/couchdb/data
+      - ${PROJECT_FOLDER:-.}/couchdb-config/custom.ini:/opt/couchdb/etc/local.d/custom.ini:ro
     environment:
       COUCHDB_USER: ${COUCHDB_USER:-admin}
       COUCHDB_PASSWORD: ${COUCHDB_PASS:?COUCHDB_PASS must be set}
@@ -27,6 +64,30 @@ services:
     networks:
       - chw-map-net
 
+  init-couchdb:
+    image: curlimages/curl
+    container_name: chw-map-init-couchdb
+    depends_on:
+      - couchdb
+    volumes:
+      - ${PROJECT_FOLDER:-.}/couchdb-config/init-couchdb.sh:/init-couchdb.sh
+    entrypoint: sh /init-couchdb.sh
+    environment:
+      COUCHDB_HOST: couchdb
+      # COUCHDB_HOST: ${COUCHDB_HOST:-couchdb}
+      COUCHDB_PORT: ${COUCHDB_PORT:-5984}
+      COUCHDB_USER: ${COUCHDB_USER:-admin}
+      COUCHDB_PASS: ${COUCHDB_PASS:?COUCHDB_PASS must be set}
+      COUCHDB_DB: ${COUCHDB_DB:?COUCHDB_DB must be set}
+      COUCHDB_PROTOCOL: ${COUCHDB_PROTOCOL:-http}
+      COUCHDB_MEMBER_USER: ${COUCHDB_MEMBER_USER:?COUCHDB_MEMBER_USER must be set}
+      COUCHDB_MEMBER_PASS: ${COUCHDB_MEMBER_PASS:?COUCHDB_MEMBER_PASS must be set}
+      COUCHDB_LOG_LEVEL: ${COUCHDB_LOG_LEVEL:-info}
+
+    restart: on-failure
+    networks:
+      - chw-map-net
+
   backend:
     build:
       context: ${PROJECT_FOLDER:-.}
@@ -34,13 +95,15 @@ services:
     container_name: chw-map-app
     depends_on:
       - couchdb
+      # couchdb:
+      #   condition: service_completed_successfully
     ports:
       - "${HTTP_PORT:-8047}:8047"
       - "${HTTPS_PORT:-4047}:4047"
     # En dev, le montage permet le hot-reload, en prod, il faut retirer ce volume pour isoler le container
     volumes:
-      - ${BACKEND_FOLDER:-./backend}:/app/backend       # Montage pour développement local (commenter/enlever en production)
-      - ${VIEWS_FOLDER:-./views}:/app/views
+      - ${PROJECT_FOLDER:-.}/backend:/app/backend       # Montage pour développement local (commenter/enlever en production)
+      - ${PROJECT_FOLDER:-.}/views:/app/views
     # - ${OSRM_FOLDER:-./osrm-server}:/app/osrm-server
     env_file:
       - ./.env                       # Charger les variables depuis un fichier .env
@@ -52,14 +115,13 @@ services:
     networks:
       - chw-map-net
 
-
   # Étape de préparation des données OSRM
   osrm-prepare:
     image: osrm/osrm-backend
     container_name: osrm-prepare
     volumes:
-      - ${OSRM_FOLDER:-./osrm-server}:/rawdata
-      - ${OSRM_FOLDER:-./osrm-server}/togo:/data
+      - ${PROJECT_FOLDER:-.}/osrm-server:/rawdata
+      - ${PROJECT_FOLDER:-.}/osrm-server/togo:/data
     working_dir: /rawdata
     command:
       - bash
@@ -93,7 +155,7 @@ services:
     depends_on:
       - osrm-prepare
     volumes:
-      - ${OSRM_FOLDER:-./osrm-server}/togo:/data
+      - ${PROJECT_FOLDER:-.}/osrm-server/togo:/data
     ports:
       - "${OSRM_PORT:-5000}:5000"
     command: osrm-routed --algorithm mld /data/togo-latest.osrm
@@ -102,19 +164,8 @@ services:
     restart: unless-stopped
 
 
-# couchdb-prepare:
-#   build:
-#     context: .
-#     dockerfile: ${DOCKER_FOLDER:-./docker}/couchdb-prepare/Dockerfile
-#   container_name: chw-map-couchdb-prepare
-#   depends_on:
-#     - couchdb
-#   env_file:
-#     - ./.env 
-#   volumes:
-#     - ${COUCHDB_DATA_FOLDER:-./data/couchdb}:/opt/couchdb/data
-#   networks:
-#     - chw-map-net
+volumes:
+  chw-map-couchdb-config:
 
 networks:
   chw-map-net:

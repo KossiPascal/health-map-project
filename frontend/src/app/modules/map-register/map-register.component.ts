@@ -1,11 +1,10 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { NgForm } from '@angular/forms';
-import { ApiService } from '../../services/api.service';
-import { haversineDistance, isMobileUser, notNull } from '../../shares/functions';
+import { notNull } from '../../shares/functions';
 import { ChwMap, HealthCenterMap, MapLocation, OrgUnit, User } from '../../models/interfaces';
-import { AuthService } from '../../services/auth.service';
-import { from, Subject, takeUntil } from 'rxjs';
 import { DbService } from '../../services/db.service';
+import { UserContextService } from '@kossi-services/user-context.service';
+import { AuthService } from '@kossi-services/auth.service';
 
 @Component({
   standalone: false,
@@ -13,7 +12,7 @@ import { DbService } from '../../services/db.service';
   templateUrl: './map-register.component.html',
   styleUrls: ['./map-register.component.css'],
 })
-export class MapRegisterComponent implements OnInit, OnDestroy {
+export class MapRegisterComponent implements OnInit {
 
   resetChanged: any;
 
@@ -37,7 +36,6 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
   selected: { [key: number]: string } = {};
   levelsDef: any[] = []; // définitions des niveaux : [{level: 1, name: 'Pays'}, ...]
 
-  private destroy$ = new Subject<void>();
 
   private fsLocation: MapLocation | undefined;
 
@@ -46,7 +44,7 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
   errorMessage: string = '';
 
 
-  constructor(private auth: AuthService, private api: ApiService, private db: DbService) {
+  constructor(private userCtx: UserContextService, private db: DbService, private auth: AuthService) {
     this.chw = this.defaultChwMap;
     this.initializeComponent();
   }
@@ -55,11 +53,6 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
 
   }
 
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
 
   getFsLocation(): MapLocation | undefined {
     const hcId = this.chw.healthCenter.id;
@@ -137,10 +130,6 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
   //   this.healthCenters = !communeId ? [] : this.HealthCenters.filter(h => h.parent.id === communeId);
   // }
 
-
-
-
-
   // this.auth.user$.subscribe((user: User | undefined) => {
   //   if (user) {
   //     this.Countries = user.orgUnits.Countries;
@@ -160,22 +149,19 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
 
 
   private initializeComponent() {
-    from(this.auth.user$).pipe(takeUntil(this.destroy$)).subscribe(user => {
+    try {
+      const user = this.userCtx.user;
+
       if (!(this.Countries.length > 0)) this.Countries = user?.orgUnits.Countries ?? [];
       if (!(this.Regions.length > 0)) this.Regions = user?.orgUnits.Regions ?? [];
       if (!(this.Districts.length > 0)) this.Districts = user?.orgUnits.Districts ?? [];
       if (!(this.Communes.length > 0)) this.Communes = user?.orgUnits.Communes ?? [];
       if (!(this.HealthCenters.length > 0)) this.HealthCenters = user?.orgUnits.HealthCenters ?? [];
       this.countriesGenerate();
-      // this.regionsGenerate(null);
-      // this.districtsGenerate(null);
-      // this.communesGenerate(null);
-      // this.hospitalsGenerate(null);
-
-    });
+    } catch (error) {
+      this.auth.logout();
+    }
   }
-
-
 
   countriesGenerate() {
     this.setOrgUnitsValues({ country: true, region: true, district: true, commune: true, hospital: true });
@@ -272,7 +258,6 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
       this.healthCenters = [];
       this.chw.healthCenter.id = undefined;
     }
-
   }
 
   isWaterSourceError: boolean = false;
@@ -488,7 +473,7 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
       sendToDhis2By: undefined,
     }
 
-    const res = await this.db.createOrUpdateDoc(fsData, 'fs')
+    const res = await this.db.createOrUpdateDoc(fsData, 'fs');
 
     if (res) {
       this.message = 'Formation sanitaire enregistré avec succès !';
@@ -513,7 +498,6 @@ export class MapRegisterComponent implements OnInit, OnDestroy {
       districtId: undefined,
       communeId: undefined,
       chwFullName: undefined,
-
       location: {
         lat: undefined,
         lng: undefined,

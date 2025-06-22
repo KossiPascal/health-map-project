@@ -2,12 +2,11 @@
   <h3 *ngIf="!isValidFsLatLng && healthCenterId" style="text-align: center;">Localiser la Formation Sanitaire</h3>
   <!-- Toolbar visible sur desktop uniquement -->
   <div class="map-toolbar" *ngIf="!isMobile && !isMobileDevice">
-    <input type="text" placeholder="Rechercher un lieu ou code…" (keyup.enter)="searchLocation(searchInput.value)"
-      #searchInput />
+    <input *ngIf="isOnline" type="text" placeholder="Rechercher un lieu ou code…" (keyup.enter)="searchLocation(searchInput.value)" #searchInput />
     <button type="button" (click)="useCurrentPosition()" title="Ma position">
       <i class="fas fa-crosshairs"></i>
     </button>
-    <select (change)="changeBasemap(getChangeBasemapValue($event))">
+    <select *ngIf="isOnline" (change)="changeBasemap(getChangeBasemapValue($event))">
       <option value="streets">Rues</option>
       <option value="satellite">Satellite</option>
       <option value="terrain">Relief</option>

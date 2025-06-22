@@ -7,6 +7,15 @@ import path from 'path';
 const { OSRM_URL, GOOGLE_API_KEY, ORS_API_KEY, JWT_SECRET, COUCHDB_USER, COUCHDB_PASS, COUCHDB_URL } = ENV;
 
 
+export function getCookieValue(cookieHeader: string | undefined, cookieName: string): string | undefined {
+  if (!cookieHeader) return undefined;
+  const cookies = cookieHeader.split(';').map(c => c.trim());
+  const cookie = cookies.find(c => c.startsWith(`${cookieName}=`));
+  return cookie ? decodeURIComponent(cookie.split('=')[1]) : undefined;
+}
+
+
+
 // // Auth Header
 // const authHeader = {
 //     Authorization: 'Basic ' + Buffer.from(`${COUCHDB_USER}:${COUCHDB_PASS}`).toString('base64'),
@@ -59,49 +68,6 @@ const { OSRM_URL, GOOGLE_API_KEY, ORS_API_KEY, JWT_SECRET, COUCHDB_USER, COUCHDB
 /**
  * Vérifie si la base CouchDB existe, et la crée si elle est absente
  */
-export async function ensureDatabaseExists(dbName: string): Promise<boolean> {
-    if (!COUCHDB_URL || !COUCHDB_USER || !COUCHDB_PASS) {
-        console.error(`❌ You must set ENV varialble: COUCHDB_URL, COUCHDB_USER, COUCHDB_PASS `);
-        return false;
-    }
-
-
-    const dbUrl = `${COUCHDB_URL}/${dbName}`;
-    console.log(dbUrl)
-
-    try {
-        // 🟡 Vérifie si la base existe via HEAD
-        await axios.head(dbUrl, {
-            auth: {
-                username: COUCHDB_USER,
-                password: COUCHDB_PASS,
-            },
-        });
-        // console.log(`✅ La base "${dbName}" existe déjà.`);
-        return true;
-    } catch (error: any) {
-        if (error.response?.status === 404) {
-            // 🔵 Base inexistante → création
-            try {
-                await axios.put(dbUrl, {}, {
-                    auth: {
-                        username: COUCHDB_USER,
-                        password: COUCHDB_PASS,
-                    },
-                });
-                // console.log(`🆕 Base "${dbName}" créée avec succès.`);
-                return true;
-            } catch (creationError: any) {
-                console.error(`❌ Erreur création de "${dbName}":`, creationError?.message || creationError);
-                return false;
-            }
-        } else {
-            console.error(`❌ Erreur vérification "${dbName}":`, error?.message || error);
-            return false;
-        }
-    }
-}
-
 
 export function appVersion(): { service_worker_version: number | null, app_version: string | null } {
     var service_worker_version = null;

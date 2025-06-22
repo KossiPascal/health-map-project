@@ -12,25 +12,28 @@ export class ApiService {
 
 
   /** Construit l'URL vers le backend Node.js */
-  apiUrl(path: string, isProduction: boolean = false): string {
+  apiUrl(path: string, startWithApi:boolean = true): string {
     path = path.trim();
 
     // Assurer un préfixe /api/
     if (!path.startsWith('/api/')) {
-      if (path.startsWith('api/')) {
-        path = path.slice(3);
-      }
+      if (path.startsWith('api/')) path = path.slice(3);
       path = '/api/' + path.replace(/^\/+/, '');
     }
     // path = path.trim().replace(/^\/+/, '');
     // if (!path.startsWith('api/'))  path = 'api/' + path;
 
-    let origin = window.location.origin;
+    let origin = `${window.location.protocol}//${window.location.hostname}:${window.location.port}`;
 
     // Redirection automatique vers backend local si en dev
     if (window.location.port === '4200') {
+      const isProduction: boolean = false;
       origin = `${window.location.protocol}//${window.location.hostname}:${isProduction ? 4047 : 8047}`;
     //   origin = `https://${window.location.hostname}:4047`;
+    }
+
+    if (!startWithApi && path.startsWith('/api/')) {
+      path = path.replace('/api/', '/');
     }
 
     return new URL(path, origin).toString();

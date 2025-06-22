@@ -1,11 +1,12 @@
-import express from "express";
+import express, { Request, Response } from 'express';
 import jwt from "jsonwebtoken";
 import axios from 'axios';
 import { ENV } from "../config/env";
-import { authMiddleware } from "../middlewares/auth.middleware";
+import { COUCH } from '../utils/db-utils';
+import { CookieJar } from 'request';
 
 const router = express.Router();
-const { DHIS2_API_URL, JWT_SECRET, DHIS2_ADMIN_USERNAMES, DHIS2_CAN_UPDATE_ORGUNIT_USERNAMES } = ENV;
+const { NODE_ENV, DHIS2_API_URL, JWT_SECRET, JWT_REFRESH_SECRET, DHIS2_ADMIN_USERNAMES, DHIS2_CAN_UPDATE_ORGUNIT_USERNAMES } = ENV;
 
 interface OrgUnit {
   id: string;
@@ -86,7 +87,16 @@ function transformGeometry(unit: any): OrgUnit {
   }
 }
 
-async function fetchAllOrgUnits(headers: any, userOrgUnitIds: string[], options: FetchOptions = { includeDescendants: true }): Promise<OrgUnitResult> {
+async function fetchAllOrgUnits(headers: any, userOrgUnitIds: string[], options: FetchOptions = {}): Promise<OrgUnitResult> {
+  const defaultOptions: FetchOptions = {
+    includeDescendants: true,
+    maxLevel: 5,
+    flatten: false,
+    asMap: false
+  };
+
+  options = { ...defaultOptions, ...options };
+
   const key = JSON.stringify({ ids: userOrgUnitIds.sort(), ...options });
   if (orgUnitCache.has(key)) {
     return orgUnitCache.get(key)!;
@@ -109,7 +119,7 @@ async function fetchAllOrgUnits(headers: any, userOrgUnitIds: string[], options:
       filters.push(`parent.id:in:[${userOrgUnitIds.join(',')}]`);
     }
 
-    const res = await axios.get(`${DHIS2_API_URL}/organisationUnits.json`, {
+    const res = await axios.get(`${DHIS2_API_URL!.replace(/\/$/, '')}/organisationUnits.json`, {
       headers,
       params: {
         fields: 'id,name,level,parent[id,name],geometry,coordinates,path',
@@ -120,10 +130,7 @@ async function fetchAllOrgUnits(headers: any, userOrgUnitIds: string[], options:
 
     const allUnits: OrgUnit[] = res.data?.organisationUnits
       .map(transformGeometry)
-      .filter((unit: OrgUnit) => {
-        if (options.maxLevel && unit.level > options.maxLevel) return false;
-        return true;
-      });
+      .filter((unit: any) => !options.maxLevel || unit.level <= options.maxLevel);
 
     for (const unit of allUnits) {
       switch (unit.level) {
@@ -132,15 +139,12 @@ async function fetchAllOrgUnits(headers: any, userOrgUnitIds: string[], options:
         case 3: orgUnits.Districts.push(unit); break;
         case 4: orgUnits.Communes.push(unit); break;
         case 5: orgUnits.HealthCenters.push(unit); break;
-        default: break;
       }
     }
 
     let result: OrgUnitResult = orgUnits;
 
-    if (options.flatten) {
-      result = allUnits;
-    }
+    if (options.flatten) result = allUnits;
 
     if (options.asMap) {
       const map = new Map<string, OrgUnit>();
@@ -158,93 +162,121 @@ async function fetchAllOrgUnits(headers: any, userOrgUnitIds: string[], options:
 
 router.post("/login", async (req, res) => {
   try {
+
+    if (!JWT_SECRET || !JWT_REFRESH_SECRET) throw new Error('Env variables not defined!');
+
+    // ################ START FOR COUCHDB USERS ################
+    const userSession = await COUCH.memberUsersSession();
+    if (!userSession) return res.status(401).json({ message: 'Invalid credentials' });
+    const cookieJar: any = (COUCH.nano.config as any).cookieJar as CookieJar;
+    if (!cookieJar?.jar || !Array.isArray(cookieJar.jar)) throw new Error('CookieJar mal initialisé ou vide.');
+    const authSessionCookieJar = cookieJar.jar.find((cookie: any) => cookie.name === 'AuthSession');
+    if (!authSessionCookieJar) throw new Error('CookieJar non initialisé. Assurez-vous que jar: true est bien activé dans nano.');
+    const authSessionCookie = authSessionCookieJar.value?.split('=')[1];
+    if (!authSessionCookie) return res.status(401).json({ error: 'No AuthSession cookie found' });
+    // ################ END FOR COUCHDB USERS ################
+
+
+    // ################ START FOR COUCHDB USERS ################
     const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ message: "Nom d'utilisateur et mot de passe requis" });
-    }
+    if (!username || !password) return res.status(400).json({ message: "Nom d'utilisateur et mot de passe requis" });
     const basicAuth = Buffer.from(`${username}:${password}`).toString("base64");
-    const headers = {
-      Authorization: `Basic ${basicAuth}`,
-      Accept: "application/json"
-    };
-
-    // const response = await axios.get(`${DHIS2_API_URL}/api/me`, { headers: { Authorization: `Basic ${basicAuth}` } });
-    // const user = response.data;
-
-    // 🔒 Requête DHIS2 pour récupérer l'utilisateur
+    const headers = { Authorization: `Basic ${basicAuth}`, Accept: "application/json" };
     const userRes = await fetch(`${DHIS2_API_URL}/me`, { headers });
-    if (!userRes.ok) {
-      return res.status(401).json({ message: "Échec de l'authentification DHIS2" });
-    }
+    if (!userRes.ok) return res.status(401).json({ message: "Échec de l'authentification DHIS2" });
     const user = await userRes.json();
-    // 🔒 Vérification : l'utilisateur existe et a des unités
-    if (!user || !user.organisationUnits?.length) {
-      return res.status(403).json({ message: "Utilisateur sans unités organisationnelles" });
-    }
+    if (!user || !user.organisationUnits?.length) return res.status(403).json({ message: "Utilisateur sans unités organisationnelles" });
+    // ################ END FOR DHIS2 USERS ################
+
 
     const userOrgUnitIds = user.organisationUnits.map((ou: any) => ou.id);
+    const orgUnits = await fetchAllOrgUnits(headers, userOrgUnitIds, { includeDescendants: true, maxLevel: 5 });
+    const founcdUsername = user.username || user.name || username;
+    const isAdmin = DHIS2_ADMIN_USERNAMES.includes(founcdUsername);
+    const canUpdateDhis2Data = DHIS2_CAN_UPDATE_ORGUNIT_USERNAMES.includes(founcdUsername);
+    const token = jwt.sign({ id: user.id, username: founcdUsername, isAdmin, canUpdateDhis2Data, basicAuth }, JWT_SECRET, { expiresIn: "180d" });
+    const refreshToken = jwt.sign({ sub: user.id }, JWT_REFRESH_SECRET, { expiresIn: '7d' });
+    const userData = { id: user.id, username: founcdUsername, isAdmin, canUpdateDhis2Data };
+    const days180 = 24 * 60 * 60 * 1000 * 180;// 180 jours
 
-    // 🔹 Structure par niveau, descendants récursifs, max niveau 3
-    const orgUnitsByLevel = await fetchAllOrgUnits(headers, userOrgUnitIds, {
-      includeDescendants: true,
-      maxLevel: 5
-    });
-
-    // // 🔹 Résultat à plat
-    // const flatList = await fetchAllOrgUnits(headers, userOrgUnitIds, { flatten: true });
-    // // 🔹 Résultat en Map
-    // const unitMap = await fetchAllOrgUnits(headers, userOrgUnitIds, { asMap: true });
-    // const region = unitMap.get('A1r42Id3'); // accès direct
-
-    const isAdmin = DHIS2_ADMIN_USERNAMES.includes(user.username || user.name);
-    const canUpdateDhis2Data = DHIS2_CAN_UPDATE_ORGUNIT_USERNAMES.includes(user.username || user.name);
-
-    // 🔐🧾 Création du token JWT
-    const token = jwt.sign(
-      {
-        id: user.id,
-        username: user.username || user.name,
-        isAdmin,
-        canUpdateDhis2Data,
-        basicAuth: basicAuth,
-        // roles: user.userCredentials.userRoles.map((r: any) => r.id),
-        // autorisations: user.userCredentials.userAuthorityGroups,
-        // isAdmin: user.userCredentials.authorities.includes('ALL'),
-        // orgUnits
-      },
-      JWT_SECRET!,
-      { expiresIn: "180d" }
-    );
-
-    // 🍪 Envoi du token en cookie httpOnly
-    res.cookie("token", token, {
+    res.cookie('AuthSession', authSessionCookie, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000 * 180 // 180 jours
+      secure: NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: days180,
     });
-    // 🟢 Réponse client
-    return res.json({ token, id: user.id, username: user.username, isAdmin, canUpdateDhis2Data, orgUnits: orgUnitsByLevel });
+    res.cookie("TogoMapToken", token, {
+      httpOnly: true,
+      secure: NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: days180,
+    });
+    res.cookie('TogoMapRefreshToken', refreshToken, {
+      httpOnly: true,
+      secure: NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: days180 - 60_000,
+    });
+    res.cookie('TogoMapUserCtx', JSON.stringify(userData), {
+      httpOnly: false,
+      secure: NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: days180,
+    });
 
-  } catch (err) {
-    // console.error("Erreur de login:", err);
-    return res.status(500).json({ message: "Erreur serveur lors de la connexion" });
+    return res.status(200).json({ orgUnits });
+  } catch (err: any) {
+    console.error("Erreur de login:", err);
+    return res.status(500).json({ error: err.message || "Erreur serveur lors de la connexion" });
+  }
+});
+
+router.post("/refresh_token", async (req: Request, res: Response) => {
+  const token = req.cookies['TogoMapRefreshToken'];
+  if (!token) return res.sendStatus(401);
+
+  try {
+    const payload: any = jwt.verify(token, JWT_REFRESH_SECRET!);
+    return res.status(200).json({ ok: true, userId: payload.sub });
+  } catch {
+    return res.sendStatus(403);
   }
 });
 
 // 🔓 Déconnexion
 router.post("/logout", (req, res) => {
-  res.clearCookie("token");
-  return res.json({ message: "Déconnecté" });
+  try {
+    res.clearCookie('TogoMapToken', {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: NODE_ENV === 'production',
+    });
+    res.clearCookie('TogoMapRefreshToken', {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: NODE_ENV === 'production',
+    });
+    res.clearCookie('AuthSession', {
+      path: '/',
+      sameSite: 'strict',
+      secure: NODE_ENV === 'production',
+    });
+    res.clearCookie('TogoMapUserCtx', {
+      httpOnly: false,
+      sameSite: 'strict',
+      secure: NODE_ENV === 'production',
+    });
+
+    return res.status(200).json({ ok: true, message: 'Logged out' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    return res.status(500).json({ error: 'Logout failed' });
+  }
 });
 
 export = router;
-
-
-
-
-
 
 
 
@@ -306,7 +338,6 @@ async function getOrgUnitWithChildren(id: string, headers: any): Promise<any> {
   unit.children = children;
   return unit;
 }
-
 
 async function getUserFullOrgUnits(orgUnitIds: string[], headers: any): Promise<any> {
   // 🔄 Récupération des unités organisationnelles complètes

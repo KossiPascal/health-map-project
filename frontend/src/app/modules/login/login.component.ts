@@ -33,7 +33,8 @@ export class LoginComponent implements OnDestroy {
     this.startLoadingMessages();
 
     this.auth.login({ username: this.username, password: this.password }).subscribe({
-      next: () => {
+      next: (user) => {
+        console.log(user)
         this.stopLoadingMessages();
         this.loading = false;
         this.router.navigate(['/map-register']);

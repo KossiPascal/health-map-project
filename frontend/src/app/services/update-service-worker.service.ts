@@ -9,6 +9,8 @@ import { ReloadingComponent } from '@kossi-components/reloading/reloading.compon
 import { AppStorageService } from './local-storage.service';
 import { AuthService } from './auth.service';
 import { ModalService } from './modal.service';
+import { UserContextService } from './user-context.service';
+import { NetworkService } from './network.service';
 
 
 @Injectable({
@@ -33,7 +35,9 @@ export class UpdateServiceWorkerService {
     private store: AppStorageService,
     private modalService: ModalService,
     private auth: AuthService,
-    private api: ApiService
+    private api: ApiService,
+    private userCtx: UserContextService,
+    private network: NetworkService
   ) {
   }
 
@@ -79,16 +83,16 @@ export class UpdateServiceWorkerService {
   }
 
   registerServiceWorker(onInstalling?: () => void) {
-      navigator.serviceWorker.register('/ngsw-worker.js')
-        .then((registration) => {
-          if (onInstalling) {
-            onInstalling();
-          }
-          // console.log('Service Worker registered with scope:', registration.scope);
-        })
-        .catch(error => {
-          // console.error('Service Worker registration failed:', error);
-        });
+    navigator.serviceWorker.register('/ngsw-worker.js')
+      .then((registration) => {
+        if (onInstalling) {
+          onInstalling();
+        }
+        // console.log('Service Worker registered with scope:', registration.scope);
+      })
+      .catch(error => {
+        // console.error('Service Worker registration failed:', error);
+      });
   }
 
   checkForUpdates(): void {
@@ -145,29 +149,36 @@ export class UpdateServiceWorkerService {
   }
 
   async watchForChanges() {
-    const user = await this.auth.currentUser;
-    if (user?.id) {
-      this.api.appVersion().subscribe((newVersion: { service_worker_version: number | null, app_version: string | null }) => {
-        if (newVersion) {
-          const oldVersionsStr = this.store.get({ db: 'local', name: '_versions' });
-          if (oldVersionsStr) {
-            const oldVersions = JSON.parse(oldVersionsStr) as { service_worker_version: number | null, app_version: string | null };
-            if (newVersion.service_worker_version && `${oldVersions.service_worker_version}` != `${newVersion.service_worker_version}`) {
-              this.appNewVersion = newVersion;
-              this.modalService.open(ReloadingComponent).subscribe((result:any) => {
-                if (result) {
-                  console.log("Données reçues depuis la modal :", result);
+    if (this.userCtx.userId) {
+      this.network.onlineChanges$.subscribe(online => {
+        if (online) {
+          // console.log('✅ En ligne');
+          this.api.appVersion().subscribe((newVersion: { service_worker_version: number | null, app_version: string | null }) => {
+            if (newVersion) {
+              const oldVersionsStr = this.store.get({ db: 'local', name: '_versions' });
+              if (oldVersionsStr) {
+                const oldVersions = JSON.parse(oldVersionsStr) as { service_worker_version: number | null, app_version: string | null };
+                if (newVersion.service_worker_version && `${oldVersions.service_worker_version}` != `${newVersion.service_worker_version}`) {
+                  this.appNewVersion = newVersion;
+                  this.modalService.open(ReloadingComponent).subscribe((result: any) => {
+                    if (result) {
+                      console.log("Données reçues depuis la modal :", result);
+                    }
+                  });
                 }
-              });
+              } else {
+                return this.store.set({ db: 'local', name: '_versions', value: JSON.stringify(newVersion) });
+              }
             }
-          } else {
-            return this.store.set({ db: 'local', name: '_versions', value: JSON.stringify(newVersion) });
-          }
+            setTimeout(() => this.ngZone.run(() => this.watchForChanges()), this.UPDATE_INTERVAL ?? this.SIXTY_SECOND);
+          }, (err: any) => {
+            console.log(err.toString());
+            setTimeout(() => this.ngZone.run(() => this.watchForChanges()), this.UPDATE_INTERVAL ?? this.SIXTY_SECOND);
+          });
+        } else {
+          // console.warn('🚫 Hors ligne');
+          // this.watchForChanges();
         }
-        setTimeout(() => this.ngZone.run(() => this.watchForChanges()), this.UPDATE_INTERVAL ?? this.SIXTY_SECOND);
-      }, (err: any) => {
-        console.log(err.toString());
-        setTimeout(() => this.ngZone.run(() => this.watchForChanges()), this.UPDATE_INTERVAL ?? this.SIXTY_SECOND);
       });
     }
   }

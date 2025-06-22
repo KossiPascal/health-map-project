@@ -6,7 +6,14 @@ html, body {
    /* empêche le scroll vertical */
   /* touch-action: pan-x pan-left pan-right; */
 }
+.leaflet-tile.leaflet-tile-loaded[src=""] {
+  background-color: #ccc !important;
+}
 
+.leaflet-tile {
+  background-repeat: no-repeat !important;
+  background-size: contain !important;
+}
 
 body {
     /* display: fex;

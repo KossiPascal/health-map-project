@@ -1,17 +1,16 @@
-import { Component, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, AfterViewInit } from '@angular/core';
 import * as L from 'leaflet';
 import 'leaflet.markercluster';
-import { ApiService } from '../../services/api.service';
 import { DbService } from '../../services/db.service';
-import { ChwMap, HealthCenterMap, OrgUnit } from '../../models/interfaces';
+import { ChwMap, OrgUnit } from '../../models/interfaces';
 import Chart from 'chart.js/auto';
 
-import regionGeoJson from '../../../assets/data/regions.json';
-import { GeoJsonObject } from 'geojson';
+// import regionGeoJson from '../../../assets/data/regions.json';
+// import { GeoJsonObject } from 'geojson';
 import { formatDistance, notNull } from '../../shares/functions';
-import { from, Subject, takeUntil } from 'rxjs';
-import { AuthService } from '../../services/auth.service';
 import { NgForm } from '@angular/forms';
+import { UserContextService } from '@kossi-services/user-context.service';
+import { NetworkService } from '@kossi-services/network.service';
 
 
 
@@ -23,11 +22,11 @@ import { NgForm } from '@angular/forms';
   templateUrl: './map-viewer.component.html',
   styleUrls: ['./map-viewer.component.css'],
 })
-export class MapViewerComponent implements OnInit, AfterViewInit, OnDestroy {
+export class MapViewerComponent implements OnInit, AfterViewInit {
   private map!: L.Map;
   private ascCluster!: L.MarkerClusterGroup;
   private ascMarkers: L.Marker[] = [];
-  fsMarkers: L.Marker[] = [];
+  public fsMarkers: L.Marker[] = [];
   private userMarker!: L.Marker;
   private lines: L.Polyline[] = [];
   private regionLayer!: L.GeoJSON;
@@ -67,7 +66,7 @@ export class MapViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   private defaultTileLayer!: L.TileLayer;
 
 
-  chws$: { id: string | undefined, name: string | undefined, fsName: string | undefined, lat: number | undefined, lng: number | undefined, valid: boolean, validityReason: string | undefined, fsLat?: number, fsLng?: number, distance?: string, distanceKm?: number, lastUpdated?: string }[] = [];
+  chws$: { id: string | undefined, name: string | undefined, village: string | undefined, fsName: string | undefined, lat: number | undefined, lng: number | undefined, valid: boolean, validityReason: string | undefined, fsLat?: number, fsLng?: number, distance?: string, distanceKm?: number, lastUpdated?: string }[] = [];
   HealthCenters$: { id: string | undefined, name: string | undefined, lat: number | undefined, lng: number | undefined }[] = [];
 
   showGlobe = false;
@@ -87,7 +86,6 @@ export class MapViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
 
-  private destroy$ = new Subject<void>();
 
   Countries: OrgUnit[] = [];
   Regions: OrgUnit[] = [];
@@ -101,10 +99,14 @@ export class MapViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   communes: OrgUnit[] = [];
   healthCenters: OrgUnit[] = [];
 
+  isOnline: boolean = false;
+
+  canvas: HTMLCanvasElement | null = null;
 
 
+  constructor(private db: DbService, private network: NetworkService, private userCtx: UserContextService) {
+    this.network.onlineChanges$.subscribe((online) => this.isOnline = online);
 
-  constructor(private db: DbService, private auth: AuthService) {
     this.chw = this.defaultChw;
     this.initializeComponent();
   }
@@ -112,83 +114,106 @@ export class MapViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void { }
 
   async ngAfterViewInit(): Promise<void> {
+    this.canvas = document.getElementById('ascChart') as any;
     await this.initMap();
     this.zoomToFitAll();
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+
+  /** ✅ Couche OSM normale (requiert Internet) */
+  private initMapWithOSMLayer(): void {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // attribution: '<i class="fas fa-map-marker-alt"></i> <strong>My Custom Map</strong>',
+      // maxZoom: 19,
+      errorTileUrl: '/assets/offline-tile-0.png', // si la tuile échoue
+    }).addTo(this.map);
+
+    // 🗺️ Carte alternative sombre (facultatif)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // attribution: '&copy; CARTO',
+      errorTileUrl: '/assets/offline-tile-0.png',
+    });
   }
 
-private async initMap(): Promise<void> {
-  // 🧼 Supprimer les URLs d'icônes par défaut de Leaflet
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  /** ✅ Couche hors-ligne : fond gris ou image locale */
+  private initMapWithOfflineTileLayer(): void {
+    L.tileLayer('/assets/img/offline-tile-0.png', {
+      tileSize: 256,
+      attribution: 'Vous êtes en mode hors-ligne',
+    }).addTo(this.map);
+  }
 
-  // 🎯 Définir une icône par défaut personnalisée AVANT toute création de marker
-  L.Icon.Default.mergeOptions({
-    iconUrl: 'assets/logo/ih.png',
-    iconRetinaUrl: 'assets/logo/ih.png',
-    shadowUrl: '', // ou null selon si tu veux une ombre
-  });
 
-  // 🗺️ Initialiser la carte AVANT d’ajouter des contrôles
-  this.map = L.map('map', {
-    attributionControl: false, // on désactive l'attribution par défaut
-    zoomControl: false,
-    maxBounds: [[4.0, -1.5], [13.0, 3.0]], // Togo + frontières
-    maxBoundsViscosity: 1.0
-  }).setView([8.5, 1.2], 7); // Centré sur le Togo
 
-  // 🧱 Ajouter le fond de carte (OpenStreetMap)
-  this.defaultTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    // attribution: `<i class="fas fa-map-marker-alt"></i> <strong>My Custom Map</strong>`,
-  });
-  this.defaultTileLayer.addTo(this.map);
+  private async initMap(): Promise<void> {
+    // 🧼 Supprimer les URLs d'icônes par défaut de Leaflet
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
 
-  // 🗺️ Carte alternative sombre (facultatif)
-  this.worldTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    // attribution: '&copy; CARTO',
-  });
+    // 🎯 Définir une icône par défaut personnalisée AVANT toute création de marker
+    L.Icon.Default.mergeOptions({
+      iconUrl: 'assets/logo/ih.png',
+      iconRetinaUrl: 'assets/logo/ih.png',
+      shadowUrl: '', // ou null selon si tu veux une ombre
+    });
 
-  // ➕ Contrôle de zoom (en haut à droite)
-  L.control.zoom({ position: 'topright' }).addTo(this.map);
+    // 🗺️ Initialiser la carte AVANT d’ajouter des contrôles
+    this.map = L.map('map', {
+      attributionControl: false, // on désactive l'attribution par défaut
+      zoomControl: false,
+      maxBounds: [[4.0, -1.5], [13.0, 3.0]], // Togo + frontières
+      maxBoundsViscosity: 1.0
+    }).setView([8.5, 1.2], 7); // Centré sur le Togo
 
-  // ➕ Attribution Leaflet sans le lien "Leaflet"
-  L.control.attribution({ position: 'bottomright' }).addTo(this.map).setPrefix(false);
-
-  // ✅ Contrôle personnalisé avec logo et nom
-  const CustomAttribution = L.Control.extend({
-    onAdd(map: L.Map) {
-      const div = L.DomUtil.create('div', 'custom-attribution');
-      div.innerHTML = `
-        <img src="assets/logo/ih.png" style="height: 20px; vertical-align: middle; margin-right: 6px;">
-        <a style="text-decoration: none;font-weight: bold;" href="https://integratehealth.org/">Santé Intégrée</a>
-      `;
-      return div;
-    },
-    onRemove(map: L.Map) {
-      // Rien à faire ici pour le moment
+    if (this.isOnline) {
+      this.initMapWithOSMLayer();
+      this.initAfterMapInit();
+    } else {
+      this.initMapWithOfflineTileLayer();
+      this.initAfterMapInit();
     }
-  });
-  const attributionControl = new CustomAttribution({ position: 'bottomright' });
-  attributionControl.addTo(this.map);
 
-  // ➕ Regroupement de marqueurs
-  this.ascCluster = L.markerClusterGroup();
-  this.map.addLayer(this.ascCluster);
+  }
 
-  // 📍 Chargement des données dynamiques
-  this.locateUser();
-  this.loadGeoZones();
+  async initAfterMapInit() {
 
-  this.isLoading = true;
-  await this.loadMapsData();
-  await this.refreshASCMarkers();
-  await this.loadFSMarkers();
-  this.isLoading = false;
-  this.mapInitialized = true;
-}
+    // ➕ Contrôle de zoom (en haut à droite)
+    L.control.zoom({ position: 'topright' }).addTo(this.map);
+
+    // ➕ Attribution Leaflet sans le lien "Leaflet"
+    L.control.attribution({ position: 'bottomright' }).addTo(this.map).setPrefix(false);
+
+    // ✅ Contrôle personnalisé avec logo et nom
+    const CustomAttribution = L.Control.extend({
+      onAdd(map: L.Map) {
+        const div = L.DomUtil.create('div', 'custom-attribution');
+        div.innerHTML = `
+          <img src="assets/logo/ih.png" style="height: 20px; vertical-align: middle; margin-right: 6px;">
+          <a style="text-decoration: none;font-weight: bold;" href="https://integratehealth.org/">Santé Intégrée</a>
+        `;
+        return div;
+      },
+      onRemove(map: L.Map) {
+        // Rien à faire ici pour le moment
+      }
+    });
+    const attributionControl = new CustomAttribution({ position: 'bottomright' });
+    attributionControl.addTo(this.map);
+
+    // ➕ Regroupement de marqueurs
+    this.ascCluster = L.markerClusterGroup();
+    this.map.addLayer(this.ascCluster);
+
+    // 📍 Chargement des données dynamiques
+    this.locateUser();
+    this.loadGeoZones();
+
+    this.isLoading = true;
+    await this.loadMapsData();
+    await this.loadFSMarkers();
+    await this.refreshASCMarkers();
+    this.isLoading = false;
+    this.mapInitialized = true;
+  }
 
 
   loadGeoZones(): void {
@@ -219,9 +244,9 @@ private async initMap(): Promise<void> {
   applyFilters(): void {
     this.showFilterModal = false;
     this.showOrgUnitFilterModal = false;
-    this.refreshASCMarkers();
     this.loadFSMarkers();
     this.zoomToFitAll();
+    this.refreshASCMarkers();
   }
 
 
@@ -236,8 +261,8 @@ private async initMap(): Promise<void> {
     await this.loadMapsData()
 
     this.updateMapBounds();
-    this.applyFilters();
     this.zoomToFitAll();
+    this.applyFilters();
   }
 
 
@@ -313,12 +338,13 @@ private async initMap(): Promise<void> {
       const lng = asc.location?.lng;
 
       const distance = formatDistance(asc.distanceToFacility)
-     
+
       const isValid = !!distance.kilometers && distance.kilometers < 5;
 
       this.chws$.push({
         id: asc._id,
         name: asc.chwFullName,
+        village: asc.village.names[0],
         fsName: asc.healthCenter.name,
         lat,
         lng,
@@ -372,25 +398,28 @@ private async initMap(): Promise<void> {
 
     filtered.forEach(asc => {
       if (asc?.lat && asc?.lng) {
+
+        const style = `style="color:${(asc.distanceKm ?? 0) > 5 ? 'red' : 'green'} ;"`
         const marker = L.marker([asc.lat, asc.lng], {
           icon: L.icon({
             iconUrl: asc.valid ? 'assets/img/yellow-marker.png' : 'assets/img/red-marker.png',
-            iconSize: asc.valid ? [58, 58] : [38, 38],
+            iconSize: asc.valid ? [50, 50] : [30, 30],
             iconAnchor: [14, 28],
           })
         })
-        // Statut: ${asc?.valid ? '✅ Valide' : '❌ Invalide'}<br>
-        // 🔗 <a href="/asc/${asc.id}" target="_blank">Voir profil</a><br>
-        // 📋 <a href="/rapports?asc=${asc.id}">Rapports</a>
-        // 📍 📏 
-        .bindPopup(`
+          // Statut: ${asc?.valid ? '✅ Valide' : '❌ Invalide'}<br>
+          // 🔗 <a href="/asc/${asc.id}" target="_blank">Voir profil</a><br>
+          // 📋 <a href="/rapports?asc=${asc.id}">Rapports</a>
+          // 📍 📏 
+          .bindPopup(`
           <div style="font-size:14px">
-            <strong>${asc.name}</strong><br>
-            <em>FS:</em> ${asc.fsName}<br>
-            <em>Distance FS: </em> <strong>${asc.distance}</strong><br>
-            ${asc?.validityReason || ''}<br>
+            <strong>ASC: ${asc.name}</strong><br>
+            <strong>Village: </strong> ${asc.village}<br>
+            <strong>FS:</strong> ${asc.fsName}<br>
+            <strong>Distance: <span ${style}>${asc.distance}</span></strong>
           </div>
         `);
+        // <br> ${asc?.validityReason || ''}<br>
 
         this.ascCluster.addLayer(marker);
         this.ascMarkers.push(marker);
@@ -416,14 +445,13 @@ private async initMap(): Promise<void> {
   }
 
   updateStatsChart(data: any[]): void {
-    const canvas = document.getElementById('ascChart') as HTMLCanvasElement | null;
 
-    if (!canvas) {
+    if (!this.canvas) {
       console.warn('[Chart] Canvas element with ID "ascChart" not found.');
       return;
     }
 
-    const ctx = canvas.getContext('2d');
+    const ctx = this.canvas.getContext('2d');
     if (!ctx) {
       console.warn('[Chart] Unable to get 2D context from canvas.');
       return;
@@ -435,8 +463,6 @@ private async initMap(): Promise<void> {
     }
 
     if (data.length === 0) {
-      // Facultatif : afficher un message sur le canvas
-      // ou laisser vide
       console.log('[Chart] No data available to display.');
       return;
     }
@@ -477,10 +503,10 @@ private async initMap(): Promise<void> {
 
 
 
-      
+
 
   exportVisiblePointsCSV(): void {
-    const rows = this.chws$.filter(asc =>{
+    const rows = this.chws$.filter(asc => {
       return ((asc?.valid && this.showASCValid) || (!asc?.valid && this.showASCInvalid)) && (asc.distanceKm ?? 999) <= this.distanceFilter
     }).map(asc => ({
       id: asc.id,
@@ -557,11 +583,14 @@ private async initMap(): Promise<void> {
       if (fs?.lat && fs?.lng) {
         const marker = L.marker([fs.lat, fs.lng], {
           icon: L.icon({
-            iconUrl: 'assets/img/blue-marker.png',
-            iconSize: [30, 38],
+            iconUrl: 'assets/img/health-center.png',
+            iconSize: [30, 30],
             iconAnchor: [14, 28],
           })
-        }).bindPopup(`<strong>FS:</strong> ${fs.name}`);
+        }).bindPopup(`
+          <strong>FS:</strong> ${fs.name}<br>
+            <strong>ID:</strong> ${fs.id}<br>`
+        );
 
         marker.addTo(this.map);
         this.fsMarkers.push(marker);
@@ -615,19 +644,13 @@ private async initMap(): Promise<void> {
   // ORG UNIT ELEMENTS
 
   private initializeComponent() {
-    from(this.auth.user$).pipe(takeUntil(this.destroy$)).subscribe(user => {
-      if (!(this.Countries.length > 0)) this.Countries = user?.orgUnits.Countries ?? [];
-      if (!(this.Regions.length > 0)) this.Regions = user?.orgUnits.Regions ?? [];
-      if (!(this.Districts.length > 0)) this.Districts = user?.orgUnits.Districts ?? [];
-      if (!(this.Communes.length > 0)) this.Communes = user?.orgUnits.Communes ?? [];
-      if (!(this.HealthCenters.length > 0)) this.HealthCenters = user?.orgUnits.HealthCenters ?? [];
-      this.countriesGenerate();
-      // this.regionsGenerate(null);
-      // this.districtsGenerate(null);
-      // this.communesGenerate(null);
-      // this.hospitalsGenerate(null);
-
-    });
+    const user = this.userCtx.user;
+    if (!(this.Countries.length > 0)) this.Countries = user?.orgUnits.Countries ?? [];
+    if (!(this.Regions.length > 0)) this.Regions = user?.orgUnits.Regions ?? [];
+    if (!(this.Districts.length > 0)) this.Districts = user?.orgUnits.Districts ?? [];
+    if (!(this.Communes.length > 0)) this.Communes = user?.orgUnits.Communes ?? [];
+    if (!(this.HealthCenters.length > 0)) this.HealthCenters = user?.orgUnits.HealthCenters ?? [];
+    this.countriesGenerate();
   }
 
 

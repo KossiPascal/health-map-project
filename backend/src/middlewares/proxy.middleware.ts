@@ -1,97 +1,40 @@
-import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { Request, Response } from "express";
 import { ENV } from "../config/env";
 import { createProxyMiddleware } from "http-proxy-middleware";
-import { ClientRequest } from "http";
+import http, { ClientRequest } from 'http';
 
-const { JWT_SECRET, COUCHDB_URL, COUCHDB_PROTOCOL, COUCHDB_USER, COUCHDB_PASS, OSRM_URL } = ENV;
+const { COUCHDB_USER, COUCHDB_PASS, FULL_COUCHDB_URL, COUCHDB_DB, COUCHDB_URL, COUCHDB_PROTOCOL, OSRM_URL } = ENV;
 
-
-// 🔐 Vérifie la présence et validité du cookie JWT
-function fauxtonAccessMiddleware(req: Request, res: Response, next: NextFunction) {
-    const token = req.cookies?.token;
-    if (!token) return res.status(401).json({ message: "Token manquant" });
-
-    try {
-        jwt.verify(token, JWT_SECRET!);
-        next();
-    } catch (err) {
-        return res.status(403).json({ message: "Token invalide" });
-    }
-}
-
-// 🔁 Proxy API DB (protégé par authMiddleware)
-const proxyApiDbMiddleware = createProxyMiddleware({
-    target: COUCHDB_URL,
-    changeOrigin: true,
-    secure: COUCHDB_PROTOCOL === 'https',
-    selfHandleResponse: false,
-    pathRewrite: (path, req) => path,
-    on: {
-        proxyReq: (proxyReq: ClientRequest, req: Request) => {
-            const authorization = 'Basic ' + Buffer.from(`${COUCHDB_USER}:${COUCHDB_PASS}`).toString('base64');
-            proxyReq.setHeader('Content-Type', 'application/json');
-            proxyReq.setHeader('Authorization', authorization);
-        }
-    }
-});
-
-// 🔁 Proxy public vers Fauxton + DB
-const proxyDatabaseMiddleware = createProxyMiddleware({
-    target: COUCHDB_URL,
-    changeOrigin: true,
-    secure: COUCHDB_PROTOCOL === 'https',
-    pathRewrite: (path) => path,
-    selfHandleResponse: false,
-    on: {
-        proxyReq: (proxyReq: ClientRequest, req: Request) => {
-            proxyReq.setHeader('Content-Type', 'application/json');
-        },
-        proxyRes: (proxyRes, req: Request, res: Response) => {
-            const location = proxyRes.headers['location'];
-            if (location && typeof location === 'string') {
-                try {
-                    const newURL = new URL(location);
-                    // Rewrite redirects from CouchDB to include /database prefix
-                    proxyRes.headers['location'] = `${req.protocol}://${req.headers.host}/database${newURL.pathname}`;
-                } catch (err) {
-                    console.warn('⚠️ Erreur de réécriture de location:', err);
-                }
-            }
-        },
-        error: (err: Error, req: Request, res: any) => {
-            console.error('[Proxy Error] CouchDB:', err.message);
-            if (!res.headersSent) {
-                res.status(502).json({
-                    error: 'ProxyError',
-                    message: 'Impossible de joindre CouchDB via le proxy',
-                });
-            }
-        },
-    }
-});
-
-
-
-// const proxyDatabaseMiddleware = createProxyMiddleware({
-//   target: COUCHDB_URL,
+// export const couchdbProxy = createProxyMiddleware({
+//   target: FULL_COUCHDB_URL,
 //   changeOrigin: true,
-//   selfHandleResponse: false, // Laisse http-proxy-middleware gérer la réponse
-//   pathRewrite: { '^/database': '/database' },
-//   router: (req: Request) => {
-//     const host = req.headers.host || '';
-//     if (host.includes('4200')) {
-//       // Si la requête vient du front local (Angular par ex.), utiliser BACKEND_HOST
-//       return COUCHDB_URL;
-//     }
-//     return COUCHDB_URL; // par défaut
-//   },
+//   secure: COUCHDB_PROTOCOL === 'https',
+//   selfHandleResponse: false,
+//   // pathRewrite: {
+//   //   '^/api/db': '', // supprime le prefixe pour qu’on accède bien à /health-map-db
+//   // },
+//   pathRewrite: (path, req) => path,
+//   //   router: (req: Request) => {
+//   //     const host = req.headers.host || '';
+//   //     return FULL_COUCHDB_URL; // par défaut
+//   //   },
 //   on: {
-//     proxyReq: (proxyReq, req, res) => {
-//       // Personnalisation éventuelle des en-têtes ou du corps de la requête
+//     proxyReq: (proxyReq: ClientRequest, req: Request, res: Response) => {
+//       const authorization = 'Basic ' + Buffer.from(`${COUCHDB_USER}:${COUCHDB_PASS}`).toString('base64');
+//       proxyReq.setHeader('Content-Type', 'application/json');
+//       proxyReq.setHeader('Authorization', authorization);
+
 //       if (!req.headers['content-type']?.includes('multipart')) {
-//         // writeHeaders(req, res);
-//         proxyReq.setHeader('Content-Type', 'application/json');
+//         writeHeaders(req, res);
+//         writeParsedBody(proxyReq, req);
+//       }
+
+//       // 🔒 Supprimer AuthSession des cookies si présent
+//       const cookies = req.headers.cookie?.split(';').filter(c => !c.trim().startsWith('AuthSession='));
+//       if (cookies?.length) {
+//         proxyReq.setHeader('Cookie', cookies.join(';'));
+//       } else {
+//         proxyReq.removeHeader('Cookie');
 //       }
 //     },
 //     proxyRes: (proxyRes, req, res) => {
@@ -102,7 +45,7 @@ const proxyDatabaseMiddleware = createProxyMiddleware({
 //       }
 //     },
 //     error: (err: Error, req: Request, res: any) => {
-//       console.error('[Proxy Error] CouchDB:', err.message);
+//       // console.error('[Proxy Error] CouchDB:', err.message);
 //       if (!res.headersSent) {
 //         res.status(502).json({
 //           error: 'ProxyError',
@@ -110,55 +53,109 @@ const proxyDatabaseMiddleware = createProxyMiddleware({
 //         });
 //       }
 //     },
-//   },
+//   }
 // });
 
-// 🔐 Middleware de vérification d'accès à Fauxton
-const databaseMiddlewareCheck = (req: Request, res: Response, next: NextFunction) => {
-    if (req.method === 'GET') {
-        if (req.path === '/_utils') return res.redirect(301, req.originalUrl + '/');
-        const isUi = !req.path.match(/\.(js|css|png|ico|json|map)$/)
-            && !req.path.startsWith('/_session')
-            && !req.path.startsWith('/_utils/');
-        if (isUi) {
-            const token = req.cookies.token;
-            if (!token) return res.status(401).json({ message: 'Token manquant' });
-            try { jwt.verify(token, JWT_SECRET!); }
-            catch { return res.status(403).json({ message: 'Token invalide' }); }
-        }
-    }
-    next();
-};
+const FULL_COUCHDB_URL_NT = 'http://couchdb:5984'
 
-// 🧭 Proxy vers OSRM
-const proxyOsrmMiddleware = createProxyMiddleware({
-    target: OSRM_URL,
-    changeOrigin: true,
-    secure: false,
-    selfHandleResponse: false,
-    pathRewrite: (path) => path,
-    on: {
-        proxyReq: (proxyReq: ClientRequest, req: Request) => {
-            proxyReq.setHeader('Content-Type', 'application/json');
-        },
-        proxyRes: (proxyRes, req: Request, res: Response) => {
-            const location = proxyRes.headers['location'];
-            if (location && typeof location === 'string') {
-                try {
-                    const newURL = new URL(location);
-                    proxyRes.headers['location'] = `${req.protocol}://${req.headers.host}/database${newURL.pathname}`;
-                } catch (err) {
-                    console.warn('⚠️ Erreur de réécriture de location:', err);
-                }
-            }
-        }
-    }
+export const couchdbProxy = createProxyMiddleware({
+  target: FULL_COUCHDB_URL,
+  changeOrigin: true,
+  secure: COUCHDB_PROTOCOL === 'https',
+  selfHandleResponse: false, // Laisse http-proxy-middleware gérer la réponse
+  pathRewrite: { '^/': '/' },
+  router: (req: Request) => {
+    // const host = req.headers.host || '';
+    return FULL_COUCHDB_URL; // par défaut
+  },
+  on: {
+    proxyReq: (proxyReq: ClientRequest, req: Request, res: Response) => {
+      if (!req.headers['content-type']?.includes('multipart')) {
+        writeHeaders(req, res);
+        writeParsedBody(proxyReq, req);
+      }
+    },
+    proxyRes: (proxyRes, req, res) => {
+      // Nettoie les redirections HTTP qui contiendraient l’URL interne CouchDB
+      const location = proxyRes.headers['location'];
+      if (location && typeof location === 'string') {
+        proxyRes.headers['location'] = location.replace(COUCHDB_URL, '');
+      }
+    },
+    error: (err: Error, req: Request, res: any) => {
+      // console.error('[Proxy Error] CouchDB:', err.message);
+      if (!res.headersSent) {
+        res.status(502).json({
+          error: 'ProxyError',
+          message: 'Impossible de joindre CouchDB via le proxy',
+        });
+      }
+    },
+  },
 });
 
-export {
-    proxyApiDbMiddleware,
-    proxyDatabaseMiddleware,
-    databaseMiddlewareCheck,
-    proxyOsrmMiddleware,
-    fauxtonAccessMiddleware
+export const osrmProxy = createProxyMiddleware({
+  target: OSRM_URL,
+  changeOrigin: true,
+  selfHandleResponse: false, // Laisse http-proxy-middleware gérer la réponse
+  secure: false,
+  // pathRewrite: { '^/': '/' },
+  // router: (req: Request) => {
+  //   const host = req.headers.host || '';
+  //   return OSRM_URL; // par défaut
+  // },
+  on: {
+    proxyReq: (proxyReq, req, res) => {
+
+      // Personnalisation éventuelle des en-têtes ou du corps de la requête
+      if (!req.headers['content-type']?.includes('multipart')) {
+        writeHeaders(req, res);
+        writeParsedBody(proxyReq, req);
+      }
+    },
+    proxyRes: (proxyRes, req, res) => {
+      // Nettoie les redirections HTTP qui contiendraient l’URL interne CouchDB
+      const location = proxyRes.headers['location'];
+      if (location && typeof location === 'string') {
+        proxyRes.headers['location'] = location.replace(OSRM_URL, '');
+      }
+    },
+    error: (err: Error, req: Request, res: any) => {
+      console.error('[Proxy Error] CouchDB:', err.message);
+      if (!res.headersSent) {
+        res.status(502).json({
+          error: 'ProxyError',
+          message: 'Impossible de joindre CouchDB via le proxy',
+        });
+      }
+    },
+  },
+});
+
+const writeHeaders = (req: Request, res: Response, headers?: [string, string][], redirectHumans?: boolean): Response => {
+  (res as any).oldWriteHead = res.writeHead;
+  res.writeHead = function (statusCode: number, headersObj?: http.OutgoingHttpHeaders) {
+    res.setHeader('WWW-Authenticate', 'Cookie');
+    if (headers) {
+      headers.forEach(([key, value]) => {
+        res.setHeader(key, value);
+      });
+    }
+    if (redirectHumans) {
+      statusCode = 302;
+      const pathPrefix = `/${COUCHDB_DB}/`;
+      res.setHeader('Location', pathPrefix + 'login?redirect=' + encodeURIComponent(req.url));
+    }
+    (res as any).oldWriteHead(statusCode, headersObj);
+  } as any;
+  return res;
+};
+
+const writeParsedBody = (proxyReq: http.ClientRequest, req: Request) => {
+  if (req.body && Object.keys(req.body).length > 0) {
+    const bodyData = JSON.stringify(req.body);
+    proxyReq.setHeader('Content-Type', 'application/json');
+    proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+    proxyReq.write(bodyData);
+  }
 };

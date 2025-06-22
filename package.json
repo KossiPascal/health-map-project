@@ -13,7 +13,7 @@
   ],
   "funding": {
     "type": "github",
-    "url": "https://github.com/KossiPascal/country-chws-map"
+    "url": "https://github.com/KossiPascal/health-map-project"
   },
   "scripts": {
     "start": "npm run clean & npm run app-api-start",

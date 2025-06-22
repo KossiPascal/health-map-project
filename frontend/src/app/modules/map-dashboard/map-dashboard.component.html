@@ -23,8 +23,8 @@
       </div>
 
       <div *ngIf="ascList.length > 0" class="filter-bar">
-        <input type="text" placeholder="Filtrer par FS" [(ngModel)]="filter.healthCenter" />
-        <select [(ngModel)]="filter.distance">
+        <input type="text" placeholder="Filtrer par nom FS" [(ngModel)]="filter.healthCenter" />
+        <select style="border-radius: 5px; padding: 3px 4px;" [(ngModel)]="filter.distance">
           <option value="">Toutes distances</option>
           <option value="lt5">Distance ≤ 5km</option>
           <option value="gt5">Distance > 5km</option>
@@ -71,7 +71,7 @@
             <td class="actions">
               <!-- <button class="btn btn-edit" (click)="updateDoc(asc)">✏️ Modifier</button> -->
               <!-- <button class="btn btn-delete" (click)="deleteDoc(asc)">🗑️</button> -->
-              <span style="cursor: pointer; color: red;" class="fas fa-trash" (click)="deleteDoc(asc)"></span>
+              <span style="cursor: pointer; color: red;" class="fas fa-trash" (click)="deleteDoc(asc,'chw')"></span>
             </td>
           </tr>
         </tbody>
@@ -95,7 +95,7 @@
       </div>
 
       <div *ngIf="healthCenterList.length > 0" class="filter-bar">
-        <select [(ngModel)]="filter.fsSendedToDhis2">
+        <select style="border-radius: 5px; padding: 3px 4px;" [(ngModel)]="filter.fsSendedToDhis2">
           <option value="">Toutes Formation Sanitaire</option>
           <option value="yes">Déja Envoyé au Dhis2</option>
           <option value="no">Non encore envoyé au Dhis2</option>
@@ -119,13 +119,13 @@
             
             <td>
               <!-- <button class="btn btn-edit" (click)="updateDoc(fs)">✏️ Modifier</button> -->
-               <span style="color: rgb(121, 0, 0);" class="fas fa-trash" (click)="deleteDoc(fs)"></span>
+               <span style="color: rgb(121, 0, 0);" class="fas fa-trash" (click)="deleteDoc(fs, 'fs')"></span>
               <!-- <button class="btn btn-delete" (click)="deleteDoc(fs)">🗑️ Supprimer</button> -->
             </td>
             <td>
               <strong style="color: green;" *ngIf="fs.isSendToDhis2 == true">Déja dans DHIS2 </strong> 
               <button 
-                [disabled]="isDhis2Sending || !auth.canUpdateDhis2Data" 
+                [disabled]="isDhis2Sending || !userCtx.canUpdateDhis2Data" 
                 style="padding: 5px 8px!important; font-size: 12px;" 
                 class="btn {{ fs.isSendToDhis2 == true ? 'btn-dhis2-send' : 'btn-dhis2' }}" 
                 (click)="sendToDhid2(fs)">

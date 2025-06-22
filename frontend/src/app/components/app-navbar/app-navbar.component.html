@@ -22,10 +22,10 @@
           <i class="fas fa-bars"></i>
         </button>
         <div *ngIf="activeMenu" class="menu-options">
-          <button (click)="triggerManualSync()" [disabled]="db.isActive"
-            class="manual-sync-btn" [ngClass]="db.cssContainerClass$ | async">
-            <i class="fas" [ngClass]="db.cssClass$ | async"></i>
-            <span>{{ db.syncStatusLabel }}</span>
+          <button (click)="triggerManualSync()" [disabled]="dbSync.isActive"
+            class="manual-sync-btn" [ngClass]="dbSync.cssContainerClass$ | async">
+            <i class="fas" [ngClass]="dbSync.cssClass$ | async"></i>
+            <span>{{ dbSync.syncStatusLabel }}</span>
           </button>
           <button class="btn " (click)="reloadApp()">
             <!-- <i class="fas fa-sign-out-alt"></i> -->

@@ -4,6 +4,33 @@ import { ENV } from '../config/env';
 
 const { JWT_SECRET } = ENV;
 
+// auth.middleware.ts
+// export function requireAuth(req: Request, res: Response, next: NextFunction) {
+//     const session = req.cookies.AuthSession;
+//     if (!session) {
+//       return res.status(401).json({ ok: false, message: 'Not authenticated' });
+//     }
+//     next();
+//   }
+  
+
+// export const isAuthenticated = async (req: any, res: any, next: any) => {
+//   try {
+//     const session = await couch.session();
+
+//     if (session.userCtx.name) {
+//       (req as any).user = session.userCtx; // injecter l'utilisateur
+//       return next();
+//     }
+
+//     return res.status(401).json({ error: 'Unauthorized' });
+//   } catch (err) {
+//     console.error('Auth middleware error:', err);
+//     return res.status(401).json({ error: 'Unauthorized' });
+//   }
+// };
+
+
 export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
     try {
         const authHeader = req.headers['authorization'];

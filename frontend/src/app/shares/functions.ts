@@ -1,79 +1,4 @@
 import { get } from 'fast-levenshtein';
-import { DeviceDetectorService } from 'ngx-device-detector';
-
-/**
- * Calcule la distance entre deux points géographiques avec la formule de Haversine.
- * @param {number} lat1 - Latitude du point 1 (en degrés)
- * @param {number} lon1 - Longitude du point 1 (en degrés)
- * @param {number} lat2 - Latitude du point 2 (en degrés)
- * @param {number} lon2 - Longitude du point 2 (en degrés)
- * @param {'km' | 'm' | 'mi'} unit - Unité de sortie : kilomètres (par défaut), mètres ou miles
- * @returns {number} Distance entre les deux points (dans l'unité choisie)
- */
-// export function haversineDistance(options: { lat1: number|null, lon1: number|null, lat2: number|null, lon2: number|null }, unit: 'km' | 'metres' | 'miles' = 'km'): number {
-//     const { lat1, lon1, lat2, lon2 } = options;
-
-
-//     if (!lat1 || !lon1 || !lat2 || !lon2) {
-//         throw new Error("Les coordonnées ne doivent pas être vide.");
-//     }
-
-//     if ([lat1, lon1, lat2, lon2].some(coord => typeof coord !== 'number' || isNaN(coord))) {
-//         throw new Error("Les coordonnées doivent être des nombres valides.");
-//     }
-
-//     const toRad = (value: number) => (value * Math.PI) / 180;
-
-//     const R_km = 6371; // Rayon de la Terre en kilomètres
-//     const dLat = toRad(lat2 - lat1);
-//     const dLon = toRad(lon2 - lon1);
-
-//     const a =
-//         Math.sin(dLat / 2) ** 2 +
-//         Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-//         Math.sin(dLon / 2) ** 2;
-
-//     // const a = 
-//     //     Math.sin(dLat/2) * Math.sin(dLat/2) +
-//     //     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-//     //     Math.sin(dLon/2) * Math.sin(dLon/2);
-
-//     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-//     let distanceKm = R_km * c;
-
-//     switch (unit) {
-//         case 'metres':
-//             return distanceKm * 1000;
-//         case 'miles':
-//             return distanceKm * 0.621371;
-//         default:
-//             return distanceKm;
-//     }
-// }
-
-export function getDeviceInfo(deviceService: DeviceDetectorService): { isAndroid: boolean, isIOS: boolean, isTablet: boolean, isMobile: boolean, isWindows: boolean, isMac: boolean } {
-  const userAgent = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent.toLowerCase() : '';
-
-  const os = deviceService.os.toLowerCase();
-  const deviceType = deviceService.deviceType;
-
-  const isAndroid = /android/.test(userAgent) || os === 'android';
-  const isIOS = /iphone|ipad|ipod/.test(userAgent) || os === 'ios';
-  const isTablet = /tablet|ipad/.test(userAgent) || deviceType === 'tablet';
-  const isMobile = /mobile/.test(userAgent) || deviceType === 'mobile';
-  const isWindows = /windows/.test(userAgent) || os === 'windows';
-  const isMac = /macintosh|mac os/.test(userAgent) || os === 'mac';
-
-  return { isAndroid, isIOS, isTablet, isMobile, isWindows, isMac };
-}
-
-
-export function isMobileUser(deviceService: DeviceDetectorService): boolean {
-  const { isAndroid, isIOS, isTablet, isMobile } = getDeviceInfo(deviceService);
-  return isAndroid || isIOS || isTablet || isMobile;
-}
-
-
 
 export function notNull(data: any): boolean {
   return data != '' && data != null && data != undefined && typeof data != undefined && data.length != 0; // && Object.keys(data).length != 0;
@@ -151,6 +76,62 @@ function levenshtein(a: string, b: string): number {
 
   return matrix[a.length][b.length];
 }
+
+
+/**
+ * Calcule la distance entre deux points géographiques avec la formule de Haversine.
+ * @param {number} lat1 - Latitude du point 1 (en degrés)
+ * @param {number} lon1 - Longitude du point 1 (en degrés)
+ * @param {number} lat2 - Latitude du point 2 (en degrés)
+ * @param {number} lon2 - Longitude du point 2 (en degrés)
+ * @param {'km' | 'm' | 'mi'} unit - Unité de sortie : kilomètres (par défaut), mètres ou miles
+ * @returns {number} Distance entre les deux points (dans l'unité choisie)
+ */
+// export function haversineDistance(options: { lat1: number|null, lon1: number|null, lat2: number|null, lon2: number|null }, unit: 'km' | 'metres' | 'miles' = 'km'): number {
+//     const { lat1, lon1, lat2, lon2 } = options;
+
+
+//     if (!lat1 || !lon1 || !lat2 || !lon2) {
+//         throw new Error("Les coordonnées ne doivent pas être vide.");
+//     }
+
+//     if ([lat1, lon1, lat2, lon2].some(coord => typeof coord !== 'number' || isNaN(coord))) {
+//         throw new Error("Les coordonnées doivent être des nombres valides.");
+//     }
+
+//     const toRad = (value: number) => (value * Math.PI) / 180;
+
+//     const R_km = 6371; // Rayon de la Terre en kilomètres
+//     const dLat = toRad(lat2 - lat1);
+//     const dLon = toRad(lon2 - lon1);
+
+//     const a =
+//         Math.sin(dLat / 2) ** 2 +
+//         Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+//         Math.sin(dLon / 2) ** 2;
+
+//     // const a = 
+//     //     Math.sin(dLat/2) * Math.sin(dLat/2) +
+//     //     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+//     //     Math.sin(dLon/2) * Math.sin(dLon/2);
+
+//     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+//     let distanceKm = R_km * c;
+
+//     switch (unit) {
+//         case 'metres':
+//             return distanceKm * 1000;
+//         case 'miles':
+//             return distanceKm * 0.621371;
+//         default:
+//             return distanceKm;
+//     }
+// }
+
+
+
+
+
 
 // function similarity(a: string | string[], b: string | string[]): number {
 //   const strA = Array.isArray(a) ? a.join(' ') : a;

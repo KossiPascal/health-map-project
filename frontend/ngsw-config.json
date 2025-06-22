@@ -27,9 +27,53 @@
       "resources": {
         "files": [
           "/assets/**",
+          "/assets/css/**",
+          "/assets/data/**",
           "/assets/icons/**",
+          "/assets/img/**",
+          "/assets/logo/**",
+          "/assets/media/**",
+          "/assets/webfonts/**",
           "/**/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"
         ]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "osm-tiles",
+      "urls": [
+        "https://a.tile.openstreetmap.org/**",
+        "https://b.tile.openstreetmap.org/**",
+        "https://c.tile.openstreetmap.org/**",
+        "https://d.tile.openstreetmap.org/**",
+        "https://e.tile.openstreetmap.org/**",
+        "https://f.tile.openstreetmap.org/**",
+        "https://g.tile.openstreetmap.org/**",
+        "https://h.tile.openstreetmap.org/**",
+        "https://i.tile.openstreetmap.org/**",
+        "https://j.tile.openstreetmap.org/**",
+        "https://k.tile.openstreetmap.org/**",
+        "https://l.tile.openstreetmap.org/**",
+        "https://m.tile.openstreetmap.org/**",
+        "https://n.tile.openstreetmap.org/**",
+        "https://o.tile.openstreetmap.org/**",
+        "https://p.tile.openstreetmap.org/**",
+        "https://q.tile.openstreetmap.org/**",
+        "https://r.tile.openstreetmap.org/**",
+        "https://s.tile.openstreetmap.org/**",
+        "https://t.tile.openstreetmap.org/**",
+        "https://u.tile.openstreetmap.org/**",
+        "https://v.tile.openstreetmap.org/**",
+        "https://w.tile.openstreetmap.org/**",
+        "https://x.tile.openstreetmap.org/**",
+        "https://y.tile.openstreetmap.org/**",
+        "https://z.tile.openstreetmap.org/**"
+      ],
+      "cacheConfig": {
+        "maxSize": 200,
+        "maxAge": "100d",
+        "strategy": "performance"
       }
     }
   ]

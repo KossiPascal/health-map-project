@@ -1,10 +1,10 @@
-import { Component, ElementRef, HostListener, OnInit, ViewChild } from "@angular/core";
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { AuthService } from "../../services/auth.service";
-import { DbService } from "../../services/db.service";
 import { Router } from "@angular/router";
 import { NetworkService } from "@kossi-services/network.service";
 import { ModalService } from "@kossi-services/modal.service";
 import { LogoutConfirmComponent } from "@kossi-modals/logout/logout-confirm.component";
+import { DbSyncService } from "@kossi-services/db-sync.service";
 
 @Component({
     standalone: false,
@@ -12,7 +12,7 @@ import { LogoutConfirmComponent } from "@kossi-modals/logout/logout-confirm.comp
     templateUrl: './app-navbar.component.html',
     styleUrls: ['./app-navbar.component.css'],
 })
-export class NavbarComponent implements OnInit {
+export class NavbarComponent implements OnInit, OnDestroy {
     @ViewChild('menuRef') menuRef!: ElementRef;
 
     syncStatus = 'Offline';
@@ -27,8 +27,12 @@ export class NavbarComponent implements OnInit {
     activeMenu: boolean = false;
     isOnline = true;
 
-    constructor(public auth: AuthService, private mService: ModalService, public db: DbService, private router: Router, private networkService: NetworkService) {
+    constructor(public auth: AuthService, private mService: ModalService, public dbSync: DbSyncService, private router: Router, private network: NetworkService) {
 
+        this.network.onlineChanges$.subscribe(status => {
+            this.isOnline = status;
+            //   console.log('🌐 Connexion Internet :', status ? 'En ligne' : 'Hors ligne');
+        });
         //   this.db.status$.subscribe(status => {
         //     this.syncStatus = status;
         //     this.online = status === 'active';
@@ -40,13 +44,11 @@ export class NavbarComponent implements OnInit {
         //   });
     }
 
-
-
     ngOnInit() {
-        this.networkService.onlineChanges$.subscribe(status => {
-            this.isOnline = status;
-            //   console.log('🌐 Connexion Internet :', status ? 'En ligne' : 'Hors ligne');
-        });
+    }
+
+    ngOnDestroy(): void {
+    // this.dbSync.stopSync();
     }
 
     toggleMenu() {
@@ -83,7 +85,7 @@ export class NavbarComponent implements OnInit {
     }
 
     triggerManualSync() {
-        this.db.syncLoop();
+        this.dbSync.syncLoop();
     }
 
     reloadApp(): void {

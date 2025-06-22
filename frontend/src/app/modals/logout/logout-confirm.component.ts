@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { ModalService } from '@kossi-services/modal.service';
 import { AuthService } from '@kossi-src/app/services/auth.service';
 
 @Component({
@@ -9,7 +10,7 @@ import { AuthService } from '@kossi-src/app/services/auth.service';
 })
 export class LogoutConfirmComponent {
 
-  constructor(private auth: AuthService) { }
+  constructor(private auth: AuthService, private mService: ModalService) { }
 
 
   close() {
@@ -17,5 +18,6 @@ export class LogoutConfirmComponent {
 
   logout() {
     this.auth.logout();
+    this.mService.closeAll();
   }
 }

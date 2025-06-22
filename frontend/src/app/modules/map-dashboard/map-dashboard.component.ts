@@ -8,7 +8,7 @@ import autoTable from 'jspdf-autotable';
 import JSZip from 'jszip';
 import { formatDistance } from '@kossi-src/app/shares/functions';
 import { ApiService } from '@kossi-services/api.service';
-import { AuthService } from '@kossi-services/auth.service';
+import { UserContextService } from '@kossi-services/user-context.service';
 
 
 
@@ -33,7 +33,7 @@ export class MapDashboardComponent implements OnInit {
   };
   isDhis2Sending: boolean = false;
 
-  constructor(private db: DbService, private api: ApiService, public auth: AuthService) { }
+  constructor(private db: DbService, private api: ApiService, public userCtx: UserContextService) { }
 
   async ngOnInit(): Promise<void> {
     try {
@@ -41,7 +41,7 @@ export class MapDashboardComponent implements OnInit {
       this.healthCenterList = await this.db.getAllDocs('fs') as HealthCenterMap[];
     } catch (err) {
       console.error('Erreur lors du chargement des ASC:', err);
-      alert('Erreur lors du chargement des données des ASC.');
+      // alert('Erreur lors du chargement des données des ASC.');
     }
   }
 
@@ -117,28 +117,32 @@ export class MapDashboardComponent implements OnInit {
 
 
   async sendToDhid2(doc: HealthCenterMap): Promise<void> {
-    if (this.auth.canUpdateDhis2Data === true) {
+    if (this.userCtx.canUpdateDhis2Data === true) {
       if (!doc || !doc._id || !doc.location.lat || !doc.location.lng) {
         alert('Données manquantes dans Vos paramètres')
         return;
       }
-      this.isDhis2Sending = true;
-      this.api.updateDhis2Geometry({ orgunit: doc._id, latitude: doc.location.lat, longitude: doc.location.lng }).subscribe({
-        next: async (res) => {
-          doc.isSendToDhis2 = true;
-          doc.sendToDhis2At = new Date().toISOString();
-          doc.sendToDhis2By = this.auth.userId!;
-          const ok = await this.db.createOrUpdateDoc(doc, 'fs');
-          if (ok) {
-            console.log('✅ Unité mise à jour', res);
+
+      if (confirm("Vous êtes sur le point de modifier la geolocalisation d'une unité d'organisation.\nSouhaitez vous continuer?")) {
+        this.isDhis2Sending = true;
+        this.api.updateDhis2Geometry({ orgunit: doc._id, latitude: doc.location.lat, longitude: doc.location.lng }).subscribe({
+          next: async (res) => {
+            doc.isSendToDhis2 = true;
+            doc.sendToDhis2At = new Date().toISOString();
+            doc.sendToDhis2By = this.userCtx.userId!;
+            const ok = await this.db.createOrUpdateDoc(doc, 'fs');
+            if (ok) {
+              console.log('✅ Unité mise à jour', res);
+            }
+            this.isDhis2Sending = false;
+          },
+          error: err => {
+            console.error('❌ Erreur', err);
+            this.isDhis2Sending = false;
           }
-          this.isDhis2Sending = false;
-        },
-        error: err => {
-          console.error('❌ Erreur', err);
-          this.isDhis2Sending = false;
-        }
-      });
+        });
+      }
+
     } else {
       alert("Vous n'êtes pas authorisé à effectuer cette action")
     }
@@ -156,7 +160,7 @@ export class MapDashboardComponent implements OnInit {
     }
   }
 
-  async deleteDoc(doc: ChwMap | HealthCenterMap): Promise<void> {
+  async deleteDoc(doc: ChwMap | HealthCenterMap, type: 'chw' | 'fs'): Promise<void> {
     if (!doc._id || !doc._rev) {
       alert('Document invalide.');
       return;
@@ -173,7 +177,11 @@ export class MapDashboardComponent implements OnInit {
       if (success) {
         // Animation avant suppression de la liste
         setTimeout(() => {
-          this.ascList = this.ascList.filter(d => d._id !== doc._id);
+          if (type == 'chw') {
+            this.ascList = this.ascList.filter(d => d._id !== doc._id);
+          } else {
+            this.healthCenterList = this.healthCenterList.filter(d => d._id !== doc._id);
+          }
           this.deletingId = undefined;
         }, 500); // durée égale à l'animation CSS
       } else {
@@ -201,14 +209,11 @@ export class MapDashboardComponent implements OnInit {
     }, 3000);
   }
 
-
-
   activeExportMenu: 'asc' | 'fs' | null = null;
 
   toggleExportMenu(menu: 'asc' | 'fs') {
     this.activeExportMenu = this.activeExportMenu === menu ? null : menu;
   }
-
 
   // ASC → CSV
   exportAscToCSV(): void {

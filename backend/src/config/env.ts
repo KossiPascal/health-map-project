@@ -40,23 +40,28 @@ export const ENV = {
     HTTPS_PORT: process.env.HTTPS_PORT,
     HTTP_PORT: process.env.HTTP_PORT,
     JWT_SECRET: process.env.JWT_SECRET,
+    JWT_REFRESH_SECRET: process.env.JWT_SECRET,
 
     COUCHDB_USER: process.env.COUCHDB_USER,
     COUCHDB_PASS: process.env.COUCHDB_PASS,
     COUCHDB_DB: process.env.COUCHDB_DB,
+    COUCHDB_MEMBER_USER: process.env.COUCHDB_MEMBER_USER,
+    COUCHDB_MEMBER_PASS: process.env.COUCHDB_MEMBER_PASS,
     COUCHDB_PROTOCOL: process.env.COUCHDB_PROTOCOL || 'http',
 
     get COUCHDB_PORT(): string | undefined {
-        return process.env.IS_DOCKER_RUNNING == 'true' ? '5984' : process.env.COUCHDB_PORT;
+        return process.env.COUCHDB_PORT || '5984';
+        // return process.env.IS_DOCKER_RUNNING == 'true' ? '5984' : process.env.COUCHDB_PORT;
     },
     get COUCHDB_HOST(): string {
         return process.env.IS_DOCKER_RUNNING == 'true' ? 'couchdb' : (process.env.COUCHDB_HOST || 'localhost');
     },
     get COUCHDB_URL() {
         return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`.replace(/\/$/, '');
-        // return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_USER}:${this.COUCHDB_PASS}@${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`;
     },
-
+    get FULL_COUCHDB_URL() {
+        return `${this.COUCHDB_PROTOCOL}://${this.COUCHDB_USER}:${this.COUCHDB_PASS}@${this.COUCHDB_HOST}:${this.COUCHDB_PORT}`.replace(/\/$/, '');
+    },
     get OSRM_HOST() {
         return process.env.IS_DOCKER_RUNNING == 'true' ? 'osrm-server' : 'localhost';
     },

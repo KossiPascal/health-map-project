@@ -4,7 +4,7 @@
 <div class="map-register-container app-container">
   <h2>Ajouter Localisation</h2>
 
-  <p *ngIf="message" style="font-size: 12px; margin: 2px;">{{ message }}</p>
+  <p *ngIf="message" style="font-size: 14px; margin: 2px; color:rgb(0, 116, 0)">{{ message }}</p>
 
   <form #form="ngForm" (ngSubmit)="isValidFsLatLng === true ? saveChwMap(form) : saveFsMap(form)" novalidate>
     <div class="inputs">
@@ -136,14 +136,6 @@
           </button>
       </ng-container>
 
-
-
-
-
-
-
-
-      
     </div>
 
     <div *ngIf="isValidFsLatLng === true && getFsLocation() as cor">
