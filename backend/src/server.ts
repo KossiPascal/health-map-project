@@ -25,7 +25,7 @@ import { couchdbProxy, osrmProxy } from "./middlewares/proxy.middleware";
 import { COUCH } from "./utils/db-utils";
 
 
-const { NODE_ENV, DHIS2_API_URL, HTTPS_PORT, HTTP_PORT, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST } = ENV;
+const { NODE_ENV, DHIS2_API_URL, HTTPS_PORT, HTTP_PORT, USE_SECURE_PORTS, SHOW_ALL_AVAILABLE_HOST, COUCHDB_DB } = ENV;
 
 
 const SECURE_PORT = parseInt(HTTPS_PORT || "4047");

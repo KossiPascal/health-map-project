@@ -7,7 +7,7 @@ services:
     container_name: chw-map-generate-localini
     user: root
     volumes:
-      - chw-map-couchdb-config:/output
+      - ${PROJECT_FOLDER:-.}/couchdb-config:/output
       - ${PROJECT_FOLDER:-.}/couchdb-config/generate-local-ini.sh:/generate-local-ini.sh
     working_dir: /output
     entrypoint: sh /generate-local-ini.sh
@@ -48,7 +48,7 @@ services:
     ports:
       - "${COUCHDB_PORT:?COUCHDB_PORT must be set}:${COUCHDB_PORT:?COUCHDB_PORT must be set}"
     volumes:
-      - chw-map-couchdb-config:/config
+      - ${PROJECT_FOLDER:-.}/couchdb-config:/config
       - ${COUCHDB_DATA_FOLDER:-../togo-chws-map-data/couchdb}:/opt/couchdb/data
       - ${PROJECT_FOLDER:-.}/couchdb-config/custom.ini:/opt/couchdb/etc/local.d/custom.ini:ro
     environment:
@@ -160,9 +160,6 @@ services:
       - chw-map-net
     restart: unless-stopped
 
-
-volumes:
-  chw-map-couchdb-config:
 
 networks:
   chw-map-net:

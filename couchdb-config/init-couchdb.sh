@@ -29,18 +29,42 @@ until curl -s -u "${COUCHDB_USER}:${COUCHDB_PASS}" "${COUCHDB_BASE_URL}/_up" > /
 done
 echo "✅ CouchDB est prêt !"
 
-# Fonction de vérification et de création de base
+# # Fonction de vérification et de création de base
+# create_db_if_not_exists() {
+#   DB_NAME="$1"
+#   echo "🔍 Vérification de l'existence de la base '${DB_NAME}'..."
+#   STATUS=$(curl -s -o /dev/null -w "%{http_code}" -u "${COUCHDB_USER}:${COUCHDB_PASS}" "${COUCHDB_BASE_URL}/${DB_NAME}")
+#   if [ "$STATUS" -ne 200 ]; then
+#     echo "🆕 Création de la base '${DB_NAME}'..."
+#     curl -s -X PUT -u "${COUCHDB_USER}:${COUCHDB_PASS}" "${COUCHDB_BASE_URL}/${DB_NAME}" > /dev/null
+#   else
+#     echo "✅ La base '${DB_NAME}' existe déjà."
+#   fi
+# }
+
 create_db_if_not_exists() {
-  DB_NAME="$1"
+  local DB_NAME="$1"
   echo "🔍 Vérification de l'existence de la base '${DB_NAME}'..."
+
   STATUS=$(curl -s -o /dev/null -w "%{http_code}" -u "${COUCHDB_USER}:${COUCHDB_PASS}" "${COUCHDB_BASE_URL}/${DB_NAME}")
-  if [ "$STATUS" -ne 200 ]; then
+
+  if [ "$STATUS" -eq 404 ]; then
     echo "🆕 Création de la base '${DB_NAME}'..."
-    curl -s -X PUT -u "${COUCHDB_USER}:${COUCHDB_PASS}" "${COUCHDB_BASE_URL}/${DB_NAME}" > /dev/null
-  else
+    CREATE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT -u "${COUCHDB_USER}:${COUCHDB_PASS}" "${COUCHDB_BASE_URL}/${DB_NAME}")
+    if [ "$CREATE_STATUS" -eq 201 ]; then
+      echo "✅ Base '${DB_NAME}' créée avec succès."
+    else
+      echo "❌ Échec de la création de la base '${DB_NAME}' (code HTTP: $CREATE_STATUS)"
+      exit 1
+    fi
+  elif [ "$STATUS" -eq 200 ]; then
     echo "✅ La base '${DB_NAME}' existe déjà."
+  else
+    echo "❌ Erreur lors de la vérification de la base '${DB_NAME}' (code HTTP: $STATUS)"
+    exit 1
   fi
 }
+
 
 # Création des bases système
 # for db in _users _replicator _global_changes; do
