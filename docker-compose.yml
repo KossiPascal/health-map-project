@@ -50,7 +50,7 @@ services:
     volumes:
       - ${PROJECT_FOLDER:-.}/couchdb-config:/config
       - ${COUCHDB_DATA_FOLDER:-../togo-chws-map-data/couchdb}:/opt/couchdb/data
-      - ${PROJECT_FOLDER:-.}/couchdb-config/custom.ini:/opt/couchdb/etc/local.d/custom.ini:ro
+      - ${PROJECT_FOLDER:-.}/couchdb-config/local-config.ini:/opt/couchdb/etc/local.d/local-config.ini:ro
     environment:
       COUCHDB_USER: ${COUCHDB_USER:-admin}
       COUCHDB_PASSWORD: ${COUCHDB_PASS:?COUCHDB_PASS must be set}

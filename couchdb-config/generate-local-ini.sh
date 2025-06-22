@@ -3,7 +3,7 @@ set -e
 
 echo "🛠️ Génération du fichier local.ini depuis les variables d'environnement..."
 
-OUTPUT_PATH="/output/custom.ini"
+OUTPUT_PATH="/output/local-config.ini"
 SUCCESS_FILE="/output/init-success"
 
 # Nettoyage sécurisé
