@@ -95,22 +95,17 @@ services:
     container_name: chw-map-app
     depends_on:
       - couchdb
-      # couchdb:
-      #   condition: service_completed_successfully
     ports:
       - "${HTTP_PORT:-8047}:8047"
       - "${HTTPS_PORT:-4047}:4047"
-    # En dev, le montage permet le hot-reload, en prod, il faut retirer ce volume pour isoler le container
     volumes:
-      - ${PROJECT_FOLDER:-.}/backend:/app/backend       # Montage pour développement local (commenter/enlever en production)
+      - ${PROJECT_FOLDER:-.}/backend:/app/backend
       - ${PROJECT_FOLDER:-.}/views:/app/views
-    # - ${OSRM_FOLDER:-./osrm-server}:/app/osrm-server
     env_file:
-      - ./.env                       # Charger les variables depuis un fichier .env
+      - ./.env
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       IS_DOCKER_RUNNING: ${IS_DOCKER_RUNNING:-true}
-    # Ajouter ici toutes les variables d'environnement nécessaires (ou via env_file)
     restart: unless-stopped          # Redémarrage automatique sauf arrêt manuel
     networks:
       - chw-map-net
