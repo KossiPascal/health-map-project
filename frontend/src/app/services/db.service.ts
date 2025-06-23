@@ -30,7 +30,7 @@ export class DbService {
   ) {
     this.localDb = new PouchDB(this.mapDbName);
     this.remoteDb = this.createRemoteDbInstance();
-    this.dbSync.initialize(this.localDb, this.remoteDb, this.userCtx.userId, async ()=>{
+    this.dbSync.initialize(this.localDb, this.remoteDb, this.userCtx.userId, async () => {
       await this.purgeDeletedDocs(this.localDb);
     });
     this.dbSync.startLiveSync();
@@ -65,28 +65,33 @@ export class DbService {
     }
   }
 
+
   async purgeDeletedDocs(db: PouchDB.Database): Promise<void> {
-  try {
-    // 1. Récupérer tous les documents, y compris les "tombstones"
-    const result = await db.allDocs({ include_docs: true, conflicts: false });
+    try {
+      // 1. Récupérer tous les documents, y compris les tombstones (_deleted)
+      const result = await db.allDocs({ include_docs: true });
 
-    // 2. Filtrer ceux qui sont marqués comme supprimés
-    const deletedDocs = result.rows
-      .filter((r:any) => !!r.doc && !!r.doc._deleted)
-      .map(r => ({ _id: r.id, _rev: r.value.rev, _deleted: true }));
+      // 2. Filtrer ceux qui sont marqués comme supprimés
+      const deletedDocs = result.rows
+        .filter((r:any) => r.doc && r.doc._deleted)
+        .map(r => ({
+          _id: r.id,
+          _rev: r.value.rev,
+          _deleted: true
+        }));
 
-    // 3. Purger les documents supprimés
-    if (deletedDocs.length > 0) {
-      const purgeResult = await db.bulkDocs(deletedDocs, { new_edits: false });
-      console.log(`🧹 Purged ${deletedDocs.length} deleted documents.`);
-      console.debug(purgeResult);
-    } else {
-      console.log("✅ No deleted documents to purge.");
+      // 3. Supprimer définitivement les documents marqués _deleted
+      if (deletedDocs.length > 0) {
+        const purgeResult = await db.bulkDocs(deletedDocs, { new_edits: false });
+        console.log(`🧹 Purged ${deletedDocs.length} deleted document(s).`);
+        console.debug(purgeResult);
+      } else {
+        console.log("✅ No deleted documents to purge.");
+      }
+    } catch (error) {
+      console.error("❌ Failed to purge deleted documents:", error);
     }
-  } catch (error) {
-    console.error("❌ Failed to purge deleted documents:", error);
   }
-}
 
 
   private createRemoteDbInstance(): PouchDB.Database {
@@ -293,8 +298,8 @@ export class DbService {
     const dataType = type === 'chw' ? 'chw-map' : type === 'fs' ? 'fs-map' : undefined;
 
     try {
-      const result = await this.localDb.allDocs({ include_docs: true, descending:true });
-      const docs: any[] = result.rows.map(r => r.doc!).filter((d:any) => !!d && !d._deleted);
+      const result = await this.localDb.allDocs({ include_docs: true, descending: true });
+      const docs: any[] = result.rows.map(r => r.doc!).filter((d: any) => !!d && !d._deleted);
 
       const offlineDocs = dataType ? docs.filter(d => d.type === dataType) : docs;
       const filteredOffline = isAdmin ? offlineDocs : offlineDocs.filter(d => d.owner === userId);
@@ -306,11 +311,11 @@ export class DbService {
           if (!isAdmin && type === 'all') throw new Error('Type "all" non autorisé pour les utilisateurs non-admin');
 
           const remoteQuery = isAdmin
-            ? this.remoteDb.query('map-client/by_type', { include_docs: true, descending:true, key: dataType })
-            : this.remoteDb.query('map-client/by_type_and_owner', { include_docs: true, descending:true, key: [dataType, userId] });
+            ? this.remoteDb.query('map-client/by_type', { include_docs: true, descending: true, key: dataType })
+            : this.remoteDb.query('map-client/by_type_and_owner', { include_docs: true, descending: true, key: [dataType, userId] });
 
           const remoteResult = await remoteQuery;
-          onlineDocs = remoteResult.rows.map(r => r.doc!).filter((d:any) => !!d && !d._deleted);
+          onlineDocs = remoteResult.rows.map(r => r.doc!).filter((d: any) => !!d && !d._deleted);
         } catch (err: any) {
           if (err.name === 'missing_named_view') {
             console.warn('⚠️ View not indexed on remote DB.');
@@ -369,8 +374,8 @@ export class DbService {
     if (!healthCenterId) return [];
 
     try {
-      const result = await this.localDb.allDocs({ include_docs: true, descending:true });
-      const docs: any[] = result.rows.map(r => r.doc!).filter((d:any) => !!d && !d._deleted);
+      const result = await this.localDb.allDocs({ include_docs: true, descending: true });
+      const docs: any[] = result.rows.map(r => r.doc!).filter((d: any) => !!d && !d._deleted);
       const offlineDocs = docs.filter(d => d.type === dataType && d.healthCenterId === healthCenterId);
       const filteredOffline = isAdmin ? offlineDocs : offlineDocs.filter(d => d.owner === userId);
 
@@ -381,15 +386,15 @@ export class DbService {
           const remoteResult = isAdmin
             ? await this.remoteDb.query('map-client/by_type_and_parent', {
               key: [dataType, healthCenterId],
-              include_docs: true, 
-              descending:true
+              include_docs: true,
+              descending: true
             })
             : await this.remoteDb.query('map-client/by_type_and_parent_and_owner', {
               key: [dataType, healthCenterId, userId],
-              include_docs: true, 
-              descending:true
+              include_docs: true,
+              descending: true
             });
-          onlineDocs = remoteResult.rows.map(r => r.doc!).filter((d:any) => !!d && !d._deleted);
+          onlineDocs = remoteResult.rows.map(r => r.doc!).filter((d: any) => !!d && !d._deleted);
         } catch (err: any) {
           if (err.name === 'missing_named_view') {
             console.warn('⚠️ View not indexed on remote DB.');
@@ -416,8 +421,8 @@ export class DbService {
     const isAdmin = this.userCtx.isAdmin;
     let existingDoc: any;
 
-    let isRemoteSuccess:boolean = false;
-    let isLocalSuccess:boolean = false;
+    let isRemoteSuccess: boolean = false;
+    let isLocalSuccess: boolean = false;
 
     try {
       existingDoc = await this.localDb.get(doc._id) as any;
@@ -452,8 +457,8 @@ export class DbService {
       console.log(`✔ Local deletion: ${doc._id}`);
       isLocalSuccess = result.ok;
     } catch (e: any) {
-        console.warn(`⚠ Local deletion failed: ${doc._id}`, e);
-        isLocalSuccess = false;
+      console.warn(`⚠ Local deletion failed: ${doc._id}`, e);
+      isLocalSuccess = false;
       // if (e.status === 404) console.warn(`⚠ Not found locally: ${doc._id}`);
       // else if (e.message === 'Unauthorized delete attempt by non-owner') console.warn(`⛔ Unauthorized delete by ${userId} on ${doc._id}`);
       // else console.error(`❌ Delete failed for ${doc._id}:`, e);
