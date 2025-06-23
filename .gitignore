@@ -4,6 +4,8 @@ android
 couch
 pythons
 z_to_delete
+haproxy
+nginx
 osrm-server/**/*.osrm*
 .env
 .idea

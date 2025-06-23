@@ -14,7 +14,7 @@ export class DbSyncService {
     private localDb: PouchDB.Database | null = null;
     private remoteDb: PouchDB.Database | null = null;
     private userId: any = '';
-    
+
     private replicateFrom: PouchDB.Replication.Replication<{}> | null = null;
     private replicateTo: PouchDB.Replication.Replication<{}> | null = null;
     private syncStatus$ = new BehaviorSubject<SyncStatus>('idle');
@@ -22,6 +22,7 @@ export class DbSyncService {
     private syncCssContainerClass$ = new BehaviorSubject<string>('sync-idle');
     private syncTimers: any[] = [];
     private isSyncing = false;
+    private functions: (() => Promise<void>) | null = null;
 
 
     status$ = this.syncStatus$.asObservable();
@@ -36,10 +37,11 @@ export class DbSyncService {
     /**
      * Initialise les bases et l'utilisateur pour la synchronisation.
      */
-    initialize(localDb: PouchDB.Database, remoteDb: PouchDB.Database, userId: string | null) {
+    initialize(localDb: PouchDB.Database, remoteDb: PouchDB.Database, userId: string | null, functions: () => Promise<void>) {
         this.localDb = localDb;
         this.remoteDb = remoteDb;
         this.userId = userId;
+        this.functions = functions;
     }
 
     /**
@@ -64,6 +66,7 @@ export class DbSyncService {
             this.updateStatus('idle');
             return;
         }
+        if(this.functions) await this.functions();
 
         try {
             this.isSyncing = true;
@@ -112,6 +115,8 @@ export class DbSyncService {
         if (!this.remoteDb || !this.localDb || !navigator.onLine || this.isSyncing) return this.updateStatus('error');
         try {
             this.updateStatus('active');
+
+            if(this.functions) await this.functions();
 
             await this.localDb.replicate.to(this.remoteDb, { retry: false })
                 .on('complete', info => console.log('✅ Replication complete', info))

@@ -56,8 +56,6 @@ const { COUCHDB_USER, COUCHDB_PASS, FULL_COUCHDB_URL, COUCHDB_DB, COUCHDB_URL, C
 //   }
 // });
 
-const FULL_COUCHDB_URL_NT = 'http://couchdb:5984'
-
 export const couchdbProxy = createProxyMiddleware({
   target: FULL_COUCHDB_URL,
   changeOrigin: true,

@@ -7,8 +7,8 @@ services:
     container_name: chw-map-generate-localini
     user: root
     volumes:
-      - ${PROJECT_FOLDER:-.}/couchdb-config:/output
-      - ${PROJECT_FOLDER:-.}/couchdb-config/generate-local-ini.sh:/generate-local-ini.sh
+      - ${PROJECT_FOLDER:-.}/couchdb:/output
+      - ${PROJECT_FOLDER:-.}/couchdb/generate-local-ini.sh:/generate-local-ini.sh
     working_dir: /output
     entrypoint: sh /generate-local-ini.sh
     environment:
@@ -48,9 +48,9 @@ services:
     ports:
       - "${COUCHDB_PORT:?COUCHDB_PORT must be set}:${COUCHDB_PORT:?COUCHDB_PORT must be set}"
     volumes:
-      - ${PROJECT_FOLDER:-.}/couchdb-config:/config
+      - ${PROJECT_FOLDER:-.}/couchdb:/config
       - ${COUCHDB_DATA_FOLDER:-../togo-chws-map-data/couchdb}:/opt/couchdb/data
-      - ${PROJECT_FOLDER:-.}/couchdb-config/local-config.ini:/opt/couchdb/etc/local.d/local-config.ini:ro
+      - ${PROJECT_FOLDER:-.}/couchdb/local-config.ini:/opt/couchdb/etc/local.d/local-config.ini:ro
     environment:
       COUCHDB_USER: ${COUCHDB_USER:-admin}
       COUCHDB_PASSWORD: ${COUCHDB_PASS:?COUCHDB_PASS must be set}
@@ -72,7 +72,7 @@ services:
     depends_on:
       - couchdb
     volumes:
-      - ${PROJECT_FOLDER:-.}/couchdb-config/init-couchdb.sh:/init-couchdb.sh
+      - ${PROJECT_FOLDER:-.}/couchdb/init-couchdb.sh:/init-couchdb.sh
     entrypoint: sh /init-couchdb.sh
     environment:
       COUCHDB_HOST: couchdb
