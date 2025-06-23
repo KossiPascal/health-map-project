@@ -85,7 +85,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
 
     triggerManualSync() {
-        this.dbSync.syncLoop();
+        this.dbSync.manualSync();
     }
 
     reloadApp(): void {

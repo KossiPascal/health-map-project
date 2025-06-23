@@ -71,7 +71,7 @@ export class DbService {
 
       // 2. Filtrer ceux qui sont marqués comme supprimés
       const deletedDocs = result.rows
-        .filter((r:any) => r.doc && r.doc._deleted)
+        .filter((r: any) => r.doc && r.doc._deleted)
         .map(r => ({
           _id: r.id,
           _rev: r.value.rev,
@@ -211,6 +211,8 @@ export class DbService {
         }
       }
 
+      let result: PouchDB.Core.Response | null = null;
+
       if (existingDoc) {
         // Vérification des droits d’édition
         if (!isAdmin && existingDoc.owner !== userId) {
@@ -228,57 +230,60 @@ export class DbService {
           owner: existingDoc.owner,
           createdAt: existingDoc.createdAt,
         };
-
         const { _id, _rev, type, owner, ...rest } = updatedDoc;
-        const result = await this.localDb.put({ _id, _rev, type, owner, ...rest });
-        console.log(`[✔] UPDATE local ${_id}`);
 
-        // Propagation vers la base distante
-        if (result.ok && this.remoteDb && this.isOnline) {
-          this.dbSync.syncLoop();
-          // try {
-          //   const remoteDoc = await this.remoteDb.get(_id).catch(() => null);
-          //   const remoteToUpdate = {
-          //     ...(remoteDoc || {}),
-          //     ...updatedDoc,
-          //     _rev: remoteDoc?._rev,
-          //   };
-          //   await this.remoteDb.put(remoteToUpdate);
-          //   console.log(`[⇅] UPDATE remote ${_id}`);
-          // } catch (err) {
-          //   console.warn(`[⚠] Remote update failed for ${_id}:`, err);
-          // }
+        try {
+          if (this.remoteDb && this.isOnline) {
+            const remoteDoc = await this.remoteDb.get(_id).catch(() => null);
+            const remoteToUpdate = { ...(remoteDoc || {}), ...updatedDoc, _rev: remoteDoc?._rev };
+            result = await this.remoteDb.put(remoteToUpdate);
+            console.log(`[⇅] UPDATE remote ${_id}`);
+          } else {
+            result = await this.localDb.put({ _id, _rev, type, owner, ...rest });
+            console.log(`[✔] UPDATE local ${_id}`);
+          }
+        } catch (err) {
+          console.warn(`[⚠] update failed for ${_id}:`, err);
         }
 
-        return result.ok;
+        // // Propagation vers la base distante
+        // if (result?.ok && this.remoteDb && this.isOnline) {
+        //   this.dbSync.manualSync();
+        // }
+
+        return !!result && result.ok;
       } else {
-        // Création d’un nouveau document
-        const newDoc = {
-          ...doc,
-          _id: doc._id ?? uuidv4(),
-          type: dataType,
-          owner: userId,
-          createdAt: doc.createdAt ?? now,
-          updatedAt: now,
-          updatedBy: userId,
-        };
 
-        const { _id, type, owner, ...rest } = newDoc;
-        const result = await this.localDb.put({ _id, type, owner, ...rest });
-        console.log(`[✔] CREATE local ${_id}`);
+        try {
+          // Création d’un nouveau document
+          const newDoc = {
+            ...doc,
+            _id: doc._id ?? uuidv4(),
+            type: dataType,
+            owner: userId,
+            createdAt: doc.createdAt ?? now,
+            updatedAt: now,
+            updatedBy: userId,
+          };
 
-        // Propagation vers la base distante
-        if (result.ok && this.remoteDb && this.isOnline) {
-          this.dbSync.syncLoop();
-          // try {
-          //   await this.remoteDb.put({ _id, type, owner, ...rest });
-          //   console.log(`[⇅] CREATE remote ${_id}`);
-          // } catch (err) {
-          //   console.warn(`[⚠] Remote creation failed for ${_id}:`, err);
-          // }
+          const { _id, type, owner, ...rest } = newDoc;
+          if (this.remoteDb && this.isOnline) {
+            result = await this.remoteDb.put({ _id, type, owner, ...rest });
+            console.log(`[⇅] CREATE remote ${_id}`);
+          } else {
+            result = await this.localDb.put({ _id, type, owner, ...rest });
+            console.log(`[✔] CREATE local ${_id}`);
+          }
+        } catch (err) {
+          console.warn(`[⚠] creation failed:`, err);
         }
 
-        return result.ok;
+        // // Propagation vers la base distante
+        // if (result?.ok && this.remoteDb && this.isOnline) {
+        //   this.dbSync.manualSync();
+        // }
+
+        return !!result && result.ok;
       }
     } catch (e: any) {
       if (e.message === 'Unauthorized update attempt by non-owner') {
@@ -441,19 +446,6 @@ export class DbService {
       throw new Error('Unauthorized delete attempt by non-owner');
     }
 
-    if (this.remoteDb && this.isOnline) {
-
-          this.dbSync.syncLoop();
-      // try {
-      //   const result = await this.remoteDb.remove(doc);
-      //   console.log(`✔ Remote deletion: ${doc._id}`);
-      //   isRemoteSuccess = result.ok;
-      // } catch (e) {
-      //   console.warn(`⚠ Remote deletion failed: ${doc._id}`, e);
-      //   isRemoteSuccess = false;
-      // }
-    }
-
     try {
       const result = await this.localDb.remove(doc);
       console.log(`✔ Local deletion: ${doc._id}`);
@@ -466,7 +458,19 @@ export class DbService {
       // else console.error(`❌ Delete failed for ${doc._id}:`, e);
     }
 
-    return isRemoteSuccess || isLocalSuccess;
+    if (this.remoteDb && this.isOnline) {
+      // await this.dbSync.manualSync();
+      try {
+        const result = await this.remoteDb.remove(doc);
+        console.log(`✔ Remote deletion: ${doc._id}`);
+        isRemoteSuccess = result.ok;
+      } catch (e) {
+        console.warn(`⚠ Remote deletion failed: ${doc._id}`, e);
+        isRemoteSuccess = false;
+      }
+    }
+
+    return isLocalSuccess || isRemoteSuccess;
   }
 
 
