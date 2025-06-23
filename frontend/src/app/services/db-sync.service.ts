@@ -57,7 +57,7 @@ export class DbSyncService {
         this.network.onlineChanges$.subscribe(isOnline => {
             this.isOnline = isOnline;
             if (isOnline) {
-                console.log('[NETWORK] ✅ En ligne : tentative de synchronisation dans 2s');
+                // console.log('[NETWORK] ✅ En ligne : tentative de synchronisation dans 2s');
                 // Nettoyage si déjà lancé
                 if (this.syncIntervalId) clearInterval(this.syncIntervalId);
 
@@ -69,9 +69,9 @@ export class DbSyncService {
                     this.replicateSafely();
                 }, intervalMs);
 
-                console.log(`[SYNC AUTO] Réplication automatique chaque ${intervalMs / 1000 / 60} min.`);
+                // console.log(`[SYNC AUTO] Réplication automatique chaque ${intervalMs / 1000 / 60} min.`);
             } else {
-                console.log('[NETWORK] ❎ Hors ligne : arrêt de la synchronisation');
+                // console.log('[NETWORK] ❎ Hors ligne : arrêt de la synchronisation');
                 this.stopAutoReplication();
             }
         });
@@ -81,7 +81,7 @@ export class DbSyncService {
 
     async replicateSafely(): Promise<void> {
         if (!this.localDb || !this.remoteDb || !this.isOnline) {
-            console.warn('[SYNC] Réplication ignorée (offline ou DB non initialisées)');
+            // console.warn('[SYNC] Réplication ignorée (offline ou DB non initialisées)');
             return;
         }
 
@@ -95,20 +95,21 @@ export class DbSyncService {
 
         try {
             // Étape 1 : Tirer les données récentes du serveur
-            console.log('[SYNC] Réplication FROM remote...');
+            // console.log('[SYNC] Réplication FROM remote...');
             await this.localDb.replicate.from(this.remoteDb, filterOptions);
 
             // Étape 2 : Gérer les conflits après réception
             await this.resolveConflicts();
 
             // Étape 3 : Pousser les données locales vers le serveur
-            console.log('[SYNC] Réplication TO remote...');
+            // console.log('[SYNC] Réplication TO remote...');
             await this.localDb.replicate.to(this.remoteDb);
 
             this.updateStatus('paused');
-        } catch (error) {
-            console.error('[SYNC] Erreur pendant la réplication :', error);
-            this.updateStatus('error');
+        } catch (error:any) {
+            // console.error('[SYNC] Erreur pendant la réplication :', error);
+            const isKnownIssue = (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id');
+            this.updateStatus(isKnownIssue ? 'paused' : 'error');
         } finally {
             this.isSyncing = false;
         }
@@ -118,13 +119,13 @@ export class DbSyncService {
     async manualSync(): Promise<void> {
         if (!this.localDb || !this.remoteDb || !this.isOnline) {
             this.updateStatus('idle');
-            console.warn('[SYNC] ❌ Synchronisation manuelle ignorée (offline ou DB manquante)');
+            // console.warn('[SYNC] ❌ Synchronisation manuelle ignorée (offline ou DB manquante)');
             return;
         }
 
         this.isSyncing = true;
         this.updateStatus('active');
-        console.log('[SYNC] 🔁 Début de la synchronisation manuelle');
+        // console.log('[SYNC] 🔁 Début de la synchronisation manuelle');
 
         const filterOptions = {
             // filter: '_view',
@@ -136,18 +137,18 @@ export class DbSyncService {
 
         try {
             // Synchronisation locale vers distante
-            console.log('[SYNC] ⬆️ Envoi des données locales vers CouchDB distant...');
+            // console.log('[SYNC] ⬆️ Envoi des données locales vers CouchDB distant...');
             this.replicateTo = await this.localDb.replicate.to(this.remoteDb);
 
             // Synchronisation distante vers locale avec filtre
-            console.log('[SYNC] ⬇️ Récupération des données depuis CouchDB distant...');
+            // console.log('[SYNC] ⬇️ Récupération des données depuis CouchDB distant...');
             this.replicateFrom = await this.localDb.replicate.from(this.remoteDb, filterOptions);
 
-            console.log('[SYNC] ✅ Synchronisation manuelle terminée');
+            // console.log('[SYNC] ✅ Synchronisation manuelle terminée');
             this.updateStatus('paused');
             this.checkIfSyncNeeded(); // Optionnel selon ta logique métier
         } catch (error: any) {
-            console.error('[SYNC] ❌ Erreur pendant la synchronisation manuelle :', error);
+            // console.error('[SYNC] ❌ Erreur pendant la synchronisation manuelle :', error);
             const isKnownIssue = (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id');
             this.updateStatus(isKnownIssue ? 'paused' : 'error');
         } finally {
@@ -201,7 +202,7 @@ export class DbSyncService {
         if (this.syncIntervalId) {
             clearInterval(this.syncIntervalId);
             this.syncIntervalId = null;
-            console.log('[SYNC AUTO] Réplication automatique stoppée.');
+            // console.log('[SYNC AUTO] Réplication automatique stoppée.');
         }
     }
 
