@@ -1,9 +1,7 @@
-import { Injectable, NgZone } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { v4 as uuidv4 } from 'uuid';
-import { BehaviorSubject } from 'rxjs';
 import { ApiService } from './api.service';
-import { ChwMap, HealthCenterMap, SyncStatus } from '../models/interfaces';
-import { NetworkService } from './network.service';
+import { ChwMap, HealthCenterMap } from '../models/interfaces';
 import { UserContextService } from './user-context.service';
 import PouchDB from 'pouchdb-browser';
 import PouchFind from 'pouchdb-find';
@@ -237,18 +235,19 @@ export class DbService {
 
         // Propagation vers la base distante
         if (result.ok && this.remoteDb && this.isOnline) {
-          try {
-            const remoteDoc = await this.remoteDb.get(_id).catch(() => null);
-            const remoteToUpdate = {
-              ...(remoteDoc || {}),
-              ...updatedDoc,
-              _rev: remoteDoc?._rev,
-            };
-            await this.remoteDb.put(remoteToUpdate);
-            console.log(`[⇅] UPDATE remote ${_id}`);
-          } catch (err) {
-            console.warn(`[⚠] Remote update failed for ${_id}:`, err);
-          }
+          this.dbSync.syncLoop();
+          // try {
+          //   const remoteDoc = await this.remoteDb.get(_id).catch(() => null);
+          //   const remoteToUpdate = {
+          //     ...(remoteDoc || {}),
+          //     ...updatedDoc,
+          //     _rev: remoteDoc?._rev,
+          //   };
+          //   await this.remoteDb.put(remoteToUpdate);
+          //   console.log(`[⇅] UPDATE remote ${_id}`);
+          // } catch (err) {
+          //   console.warn(`[⚠] Remote update failed for ${_id}:`, err);
+          // }
         }
 
         return result.ok;
@@ -270,12 +269,13 @@ export class DbService {
 
         // Propagation vers la base distante
         if (result.ok && this.remoteDb && this.isOnline) {
-          try {
-            await this.remoteDb.put({ _id, type, owner, ...rest });
-            console.log(`[⇅] CREATE remote ${_id}`);
-          } catch (err) {
-            console.warn(`[⚠] Remote creation failed for ${_id}:`, err);
-          }
+          this.dbSync.syncLoop();
+          // try {
+          //   await this.remoteDb.put({ _id, type, owner, ...rest });
+          //   console.log(`[⇅] CREATE remote ${_id}`);
+          // } catch (err) {
+          //   console.warn(`[⚠] Remote creation failed for ${_id}:`, err);
+          // }
         }
 
         return result.ok;
@@ -442,14 +442,16 @@ export class DbService {
     }
 
     if (this.remoteDb && this.isOnline) {
-      try {
-        const result = await this.remoteDb.remove(doc);
-        console.log(`✔ Remote deletion: ${doc._id}`);
-        isRemoteSuccess = result.ok;
-      } catch (e) {
-        console.warn(`⚠ Remote deletion failed: ${doc._id}`, e);
-        isRemoteSuccess = false;
-      }
+
+          this.dbSync.syncLoop();
+      // try {
+      //   const result = await this.remoteDb.remove(doc);
+      //   console.log(`✔ Remote deletion: ${doc._id}`);
+      //   isRemoteSuccess = result.ok;
+      // } catch (e) {
+      //   console.warn(`⚠ Remote deletion failed: ${doc._id}`, e);
+      //   isRemoteSuccess = false;
+      // }
     }
 
     try {
