@@ -15,8 +15,8 @@ export class DbSyncService {
     private remoteDb: PouchDB.Database | null = null;
     private userId: any = '';
 
-    private replicateFrom: PouchDB.Replication.Replication<{}> | null = null;
-    private replicateTo: PouchDB.Replication.Replication<{}> | null = null;
+    private replicateFrom: PouchDB.Replication.ReplicationResultComplete<{}> | null = null;
+    private replicateTo: PouchDB.Replication.ReplicationResultComplete<{}> | null = null;
     private syncHandler: PouchDB.Replication.Sync<{}> | null = null;
 
     private syncStatus$ = new BehaviorSubject<SyncStatus>('idle');
@@ -28,13 +28,15 @@ export class DbSyncService {
 
     private isOnline: boolean = false;
 
+    private syncIntervalId: any = null;
+
     status$ = this.syncStatus$.asObservable();
     cssClass$ = this.syncCssClass$.asObservable();
     cssContainerClass$ = this.syncCssContainerClass$.asObservable();
 
 
     constructor(private zone: NgZone, private network: NetworkService) {
-        this.setupNetworkListeners();
+        
     }
 
     /**
@@ -50,87 +52,63 @@ export class DbSyncService {
     /**
      * Gère les événements de changement de réseau.
      */
-    private async setupNetworkListeners() {
-        await this.warmUpViews();
 
-        // setTimeout(() => this.startLiveSync(), 2000);
-
+    startAutoReplication(intervalMs = 5 * 60 * 1000): void {
         this.network.onlineChanges$.subscribe(isOnline => {
             this.isOnline = isOnline;
             if (isOnline) {
-                this.startLiveSync();
+                console.log('[NETWORK] ✅ En ligne : tentative de synchronisation dans 2s');
+                // Nettoyage si déjà lancé
+                if (this.syncIntervalId) clearInterval(this.syncIntervalId);
+
+                // Démarre immédiatement une réplication
+                this.replicateSafely();
+
+                // Puis redémarre toutes les X minutes
+                this.syncIntervalId = setInterval(() => {
+                    this.replicateSafely();
+                }, intervalMs);
+
+                console.log(`[SYNC AUTO] Réplication automatique chaque ${intervalMs / 1000 / 60} min.`);
             } else {
-                this.stopSync();
+                console.log('[NETWORK] ❎ Hors ligne : arrêt de la synchronisation');
+                this.stopAutoReplication();
             }
         });
     }
 
-    async warmUpViews(): Promise<void> {
-        if (!this.remoteDb || !this.isOnline) return;
-
-        const userId = this.userId;
-
-        const viewsToWarm = [
-            { view: 'map-client/by_owner', key: userId },
-            { view: 'map-client/by_type', key: 'chw-map' },
-            { view: 'map-client/by_type', key: 'fs-map' },
-            { view: 'map-client/by_type_and_owner', key: ['chw-map', userId] },
-            { view: 'map-client/by_type_and_owner', key: ['fs-map', userId] },
-            { view: 'map-client/by_type_and_parent', key: ['chw-map', 'dummy-fs-id'] }, // si tu utilises cette vue
-            { view: 'map-client/by_type_and_parent_and_owner', key: ['chw-map', 'dummy-fs-id', userId] },
-        ];
-
-        for (const { view, key } of viewsToWarm) {
-            try {
-                await this.remoteDb.query(view, {
-                    key,
-                    limit: 1,
-                    stale: 'update_after'
-                });
-                console.log(`🔥 Vue "${view}" amorcée`);
-            } catch (err: any) {
-                if (err.name === 'missing_named_view') {
-                    console.warn(`⚠️ Vue absente : ${view}`);
-                } else {
-                    console.error(`❌ Erreur amorçage vue ${view}`, err);
-                }
-            }
-        }
-    }
 
 
-    async startLiveSync(): Promise<void> {
-        if (!this.localDb || !this.remoteDb || !navigator.onLine || this.isSyncing) {
-            this.updateStatus('idle');
+    async replicateSafely(): Promise<void> {
+        if (!this.localDb || !this.remoteDb || !this.isOnline) {
+            console.warn('[SYNC] Réplication ignorée (offline ou DB non initialisées)');
             return;
         }
 
         this.isSyncing = true;
         this.updateStatus('active');
 
-        try {
-            const syncOptions = {
-                live: true,
-                retry: true,
-                filter: '_view',
-                view: 'map-client/by_owner',
-                query_params: { key: this.userId },
-                // filter: 'filters/by_owner',
-                // query_params: { owner: this.userId }
-            };
+        const filterOptions = {
+            filter: 'filters/by_owner',
+            query_params: { owner: this.userId }
+        };
 
-            this.syncHandler = PouchDB.sync(this.localDb, this.remoteDb, syncOptions)
-                .on('change', () => this.updateStatus('changed'))
-                .on('paused', err => this.updateStatus(err ? 'error' : 'paused'))
-                .on('active', () => this.updateStatus('active'))
-                .on('denied', () => this.updateStatus('error'))
-                .on('error', () => this.updateStatus('error'));
-        } catch (error: any) {
-            if (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
-                this.updateStatus('paused');
-            } else {
-                this.updateStatus('error');
-            }
+        try {
+            // Étape 1 : Tirer les données récentes du serveur
+            console.log('[SYNC] Réplication FROM remote...');
+            await this.localDb.replicate.from(this.remoteDb, filterOptions);
+
+            // Étape 2 : Gérer les conflits après réception
+            await this.resolveConflicts();
+
+            // Étape 3 : Pousser les données locales vers le serveur
+            console.log('[SYNC] Réplication TO remote...');
+            await this.localDb.replicate.to(this.remoteDb);
+
+            this.updateStatus('paused');
+        } catch (error) {
+            console.error('[SYNC] Erreur pendant la réplication :', error);
+            this.updateStatus('error');
         } finally {
             this.isSyncing = false;
         }
@@ -138,126 +116,97 @@ export class DbSyncService {
 
 
     async manualSync(): Promise<void> {
-        if (!this.localDb || !this.remoteDb || !navigator.onLine) {
+        if (!this.localDb || !this.remoteDb || !this.isOnline) {
             this.updateStatus('idle');
+            console.warn('[SYNC] ❌ Synchronisation manuelle ignorée (offline ou DB manquante)');
             return;
         }
 
         this.isSyncing = true;
         this.updateStatus('active');
+        console.log('[SYNC] 🔁 Début de la synchronisation manuelle');
+
+        const filterOptions = {
+            // filter: '_view',
+            // view: 'map-client/by_owner',
+            // query_params: { key: this.userId },
+            filter: 'filters/by_owner',
+            query_params: { owner: this.userId }
+        };
 
         try {
-            // // 👇 Force CouchDB à indexer la vue avant de l'utiliser en live sync
-            // await this.remoteDb.query('map-client/by_owner', {
-            //     key: this.userId,
-            //     limit: 1,
-            //     stale: 'update_after' // pour éviter de bloquer l’appel si l’index est obsolète
-            // });
-            const filterOptions = {
-                filter: '_view',
-                view: 'map-client/by_owner',
-                query_params: { key: this.userId },
-                // filter: 'filters/by_owner',
-                // query_params: { owner: this.userId }
-            };
+            // Synchronisation locale vers distante
+            console.log('[SYNC] ⬆️ Envoi des données locales vers CouchDB distant...');
+            this.replicateTo = await this.localDb.replicate.to(this.remoteDb);
 
-            await this.localDb.replicate.to(this.remoteDb);
-            await this.localDb.replicate.from(this.remoteDb, filterOptions);
+            // Synchronisation distante vers locale avec filtre
+            console.log('[SYNC] ⬇️ Récupération des données depuis CouchDB distant...');
+            this.replicateFrom = await this.localDb.replicate.from(this.remoteDb, filterOptions);
 
+            console.log('[SYNC] ✅ Synchronisation manuelle terminée');
             this.updateStatus('paused');
-            this.checkIfSyncNeeded();
+            this.checkIfSyncNeeded(); // Optionnel selon ta logique métier
         } catch (error: any) {
-            if (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
-                this.updateStatus('paused');
-            } else {
-                this.updateStatus('error');
-            }
+            console.error('[SYNC] ❌ Erreur pendant la synchronisation manuelle :', error);
+            const isKnownIssue = (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id');
+            this.updateStatus(isKnownIssue ? 'paused' : 'error');
         } finally {
             this.isSyncing = false;
         }
     }
 
+    private async resolveConflicts(): Promise<void> {
+        if (!this.localDb || !this.remoteDb || !this.isOnline) {
+            console.warn('[SYNC] Réplication ignorée (offline ou DB non initialisées)');
+            return;
+        }
+
+        const result = await this.localDb.allDocs({
+            include_docs: true,
+            conflicts: true
+        });
+
+        for (const row of result.rows) {
+            const doc = row.doc;
+            if (doc?._conflicts && doc._conflicts.length > 0) {
+                console.warn(`[CONFLIT] Document ${doc._id} en conflit :`, doc._conflicts);
+
+                // 🔁 Exemple simple : on garde la version la plus récente (par date)
+                const conflictRevs = doc._conflicts;
+                const allRevs = [doc._rev, ...conflictRevs];
+
+                const allVersions = await Promise.all(
+                    allRevs.map(rev => this.localDb!.get(doc._id, { rev }))
+                );
+
+                // Suppose qu'on utilise un champ `updatedAt` ISO pour comparer
+                allVersions.sort((a: any, b: any) =>
+                    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+                );
+
+                const winningDoc = allVersions[0];
+                const losingRevs = allVersions.slice(1).map(d => d._rev);
+
+                // Supprimer les versions perdantes
+                for (const rev of losingRevs) {
+                    await this.localDb.remove(doc._id, rev);
+                    console.log(`[CONFLIT] Rev supprimée : ${rev}`);
+                }
+            }
+        }
+    }
 
 
-    // async startLiveSync(): Promise<void> {
-    //     if (!this.localDb || !this.remoteDb || !navigator.onLine || this.isSyncing) {
-    //         this.updateStatus('idle');
-    //         return;
-    //     }
-
-    //     this.isSyncing = true;
-    //     this.updateStatus('active');
-
-    //     // if (this.functions) await this.functions();
-
-    //     try {
-    //         // Sync initial: local → distant
-    //         await this.localDb.replicate.to(this.remoteDb);
-    //         // Sync live: distant → local
-    //         this.replicateFrom = this.localDb.replicate.from(this.remoteDb, {
-    //             live: true,
-    //             retry: true,
-    //             // filter: 'filters/by_owner',
-    //             // query_params: { owner: this.userId }
-    //         })
-    //             .on('change', () => this.updateStatus('changed'))
-    //             .on('paused', err => this.updateStatus(err ? 'error' : 'paused'))
-    //             .on('active', () => this.updateStatus('active'))
-    //             .on('error', () => this.updateStatus('error'));
-    //         // Sync live: local → distant
-    //         this.replicateTo = this.localDb.replicate.to(this.remoteDb, {
-    //             live: true,
-    //             retry: true
-    //         })
-    //             .on('change', () => this.updateStatus('changed'))
-    //             .on('paused', err => this.updateStatus(err ? 'error' : 'paused'))
-    //             .on('active', () => this.updateStatus('active'))
-    //             .on('denied', () => this.updateStatus('error'))
-    //             .on('error', () => this.updateStatus('error'));
-
-    //     } catch (error) {
-    //         this.isSyncing = false;
-    //         this.updateStatus('error');
-    //     }
-    // }
-
-    // async manualSync(query?: { owner: string | null }): Promise<void> {
-    //     if (!this.remoteDb || !this.localDb || !navigator.onLine || this.isSyncing) return this.updateStatus('error');
-    //     try {
-    //         this.updateStatus('active');
-
-    //         // if (this.functions) await this.functions();
-
-    //         await this.localDb.replicate.to(this.remoteDb, { retry: false })
-    //             .on('complete', info => this.updateStatus('paused'))
-    //             .on('error', (err: any) => {
-    //                 // console.error('❌ Replication error', err)
-    //                 if ((`${err?.docId}/${err?.message}`).includes('_local/') || (err?.name ?? err?.message) === 'missing_id') {
-    //                     this.updateStatus('paused');
-    //                 } else {
-    //                     this.updateStatus('error');
-    //                 }
-    //             });
-    //         await this.localDb.replicate.from(this.remoteDb);
-
-    //         // await this.localDb.replicate.from(this.remoteDb, {
-    //         //     filter: 'filters/by_owner',
-    //         //     query_params: query ?? { owner: this.userId }
-    //         // });
-
-
-    //         this.checkIfSyncNeeded();
-    //     } catch (error: any) {
-    //         if ((`${error?.docId}/${error?.message}`).includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
-    //             this.updateStatus('paused');
-    //         } else {
-    //             this.updateStatus('error');
-    //         }
-    //     }
-    // }
+    stopAutoReplication(): void {
+        if (this.syncIntervalId) {
+            clearInterval(this.syncIntervalId);
+            this.syncIntervalId = null;
+            console.log('[SYNC AUTO] Réplication automatique stoppée.');
+        }
+    }
 
     private async checkIfSyncNeeded(): Promise<void> {
-        if (!this.remoteDb || !this.localDb || !navigator.onLine || this.isSyncing) return this.updateStatus('error');
+        if (!this.remoteDb || !this.localDb || !this.isOnline || this.isSyncing) return this.updateStatus('error');
         try {
             const pending = await this.localDb.replicate.to(this.remoteDb, { live: false });
             this.updateStatus((pending.docs_written > 0 || pending.docs_read > 0) ? 'needed' : 'paused');
@@ -266,28 +215,7 @@ export class DbSyncService {
         }
     }
 
-    /**
-     * Stoppe la synchronisation live en cours.
-     */
-    stopSync(): void {
-        this.replicateFrom?.cancel();
-        this.replicateTo?.cancel();
-        this.replicateFrom = null;
-        this.replicateTo = null;
-        this.syncHandler?.cancel();
-        this.syncHandler = null;
-        this.isSyncing = false;
-        this.updateStatus('idle');
-        console.log('[SYNC] Synchronisation arrêtée.');
-    }
 
-    /**
-     * Redémarre complètement la synchronisation.
-     */
-    async resetSync(): Promise<void> {
-        this.stopSync();
-        await this.startLiveSync();
-    }
 
     /**
      * Indique si la synchronisation est active.
@@ -300,7 +228,7 @@ export class DbSyncService {
      * Supprime la base locale et arrête toute synchronisation.
      */
     async destroyDb(): Promise<void> {
-        this.stopSync();
+        this.stopAutoReplication();
         await this.localDb?.destroy();
         this.localDb = null;
         this.remoteDb = null;

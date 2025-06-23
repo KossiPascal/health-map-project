@@ -34,9 +34,8 @@ export class DbService {
     this.dbSync.initialize(this.localDb, this.remoteDb, this.userCtx.userId, async () => {
       await this.purgeDeletedDocs(this.localDb);
     });
-    this.dbSync.startLiveSync();
+    this.dbSync.startAutoReplication();
   }
-
 
   private async ensureRemoteDbExists(): Promise<void> {
     const dbUrl = this.api.apiUrl(`/${this.mapDbName}`, false);
@@ -327,7 +326,8 @@ export class DbService {
       const viewKey = isAdmin ? dataType : [dataType, userId];
       try {
         // ✅ Forcer CouchDB à indexer la vue (utile si la synchro vient de démarrer)
-        await this.remoteDb.query(viewName, { key: viewKey, limit: 1, stale: 'update_after' });
+        // stale: 'update_after', stale: 'ok'
+        await this.remoteDb.query(viewName, { key: viewKey, limit: 1 });
 
         const remoteResult = await this.remoteDb.query(viewName, { include_docs: true, descending: true, key: viewKey })
         onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
@@ -410,7 +410,8 @@ export class DbService {
         const viewKey = isAdmin ? [dataType, healthCenterId] : [dataType, healthCenterId, userId];
 
         // ✅ Forcer CouchDB à indexer la vue (utile si la synchro vient de démarrer)
-        await this.remoteDb.query(viewName, { key: viewKey, limit: 1, stale: 'update_after' });
+        // stale: 'update_after', stale: 'ok'
+        await this.remoteDb.query(viewName, { key: viewKey, limit: 1 });
         
         const remoteResult = await this.remoteDb.query(viewName, { key: viewKey, include_docs: true, descending: true });
         onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
