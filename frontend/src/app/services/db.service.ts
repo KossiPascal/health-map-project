@@ -326,16 +326,14 @@ export class DbService {
       const viewKey = isAdmin ? dataType : [dataType, userId];
       try {
         // ✅ Forcer CouchDB à indexer la vue (utile si la synchro vient de démarrer)
-        // stale: 'update_after', stale: 'ok'
-        await this.remoteDb.query(viewName, { key: viewKey, limit: 1 });
-
-        const remoteResult = await this.remoteDb.query(viewName, { include_docs: true, descending: true, key: viewKey })
+        // stale: 'ok'
+        const remoteResult = await this.remoteDb.query(viewName, { include_docs: true, descending: true, key: viewKey, stale: 'update_after' })
         onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
       } catch (err: any) {
         if (err.name === 'missing_named_view') {
           console.warn('⚠️ View not indexed on remote DB.');
         } else {
-          throw err;
+          // throw err;
         }
       }
     }
@@ -410,10 +408,8 @@ export class DbService {
         const viewKey = isAdmin ? [dataType, healthCenterId] : [dataType, healthCenterId, userId];
 
         // ✅ Forcer CouchDB à indexer la vue (utile si la synchro vient de démarrer)
-        // stale: 'update_after', stale: 'ok'
-        await this.remoteDb.query(viewName, { key: viewKey, limit: 1 });
-        
-        const remoteResult = await this.remoteDb.query(viewName, { key: viewKey, include_docs: true, descending: true });
+        // stale: 'ok'
+        const remoteResult = await this.remoteDb.query(viewName, { key: viewKey, include_docs: true, descending: true, stale: 'update_after' });
         onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
       } catch (err: any) {
         console.error('getChwsByFsId (REMOTE) error:', err);
