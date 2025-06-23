@@ -202,16 +202,25 @@ export class DbService {
     const userId = this.userCtx.userId;
     const isAdmin = this.userCtx.isAdmin;
     const dataType = type === 'chw' ? 'chw-map' : 'fs-map';
+    let targetDb: PouchDB.Database<{}>;
+    let isRemote: boolean = false;
 
-    const targetDb = this.remoteDb && this.isOnline ? this.remoteDb : this.localDb;
-    const isRemote = targetDb === this.remoteDb;
+    if (this.remoteDb && this.isOnline) {
+      targetDb = this.remoteDb;
+      isRemote = true;
+    } else {
+      targetDb = this.localDb;
+      isRemote = false;
+    }
+
+    let isSavedSuccess = false;
 
     try {
       let existingDoc: any = null;
 
       if (doc._id) {
         try {
-          existingDoc = await targetDb.get(doc._id);
+          existingDoc = await this.localDb.get(doc._id);
         } catch (err: any) {
           if (err.status !== 404) throw err;
         }
@@ -239,9 +248,12 @@ export class DbService {
 
         try {
           result = await targetDb.put(updatedDoc);
+          // console.log(`['✔'] UPDATE 'local' ${updatedDoc._id}`);
           console.log(`[${isRemote ? '⇅' : '✔'}] UPDATE ${isRemote ? 'remote' : 'local'} ${updatedDoc._id}`);
+          isSavedSuccess = true;
         } catch (err) {
           console.warn(`[⚠] update failed for ${updatedDoc._id}:`, err);
+          isSavedSuccess = false;
         }
 
       } else {
@@ -258,18 +270,23 @@ export class DbService {
 
         try {
           result = await targetDb.put(newDoc);
+          // console.log(`['✔'] CREATE 'local' ${newDoc._id}`);
           console.log(`[${isRemote ? '⇅' : '✔'}] CREATE ${isRemote ? 'remote' : 'local'} ${newDoc._id}`);
+          isSavedSuccess = true;
         } catch (err) {
           console.warn(`[⚠] creation failed:`, err);
+          isSavedSuccess = false;
         }
       }
 
       // 🔁 Synchronisation manuelle si réussite et base distante disponible
-      if (result?.ok && this.remoteDb && this.isOnline && this.dbSync?.manualSync) {
+      if (isSavedSuccess && isRemote && this.dbSync?.manualSync) {
         this.dbSync.manualSync();
       }
 
-      return !!result && result.ok;
+      // return !!result && result.ok;
+      console.log(`result: `, result)
+      return isSavedSuccess == true;;
     } catch (e: any) {
       if (e.message === 'Unauthorized update attempt by non-owner') {
         console.warn(`⛔ Unauthorized update by ${userId} on ${doc._id}`);
@@ -288,40 +305,43 @@ export class DbService {
     const isAdmin = this.userCtx.isAdmin;
     const dataType = type === 'chw' ? 'chw-map' : type === 'fs' ? 'fs-map' : undefined;
 
+    let filteredOffline: any[] = [];
+    let onlineDocs: any[] = [];
+
     try {
-      const result = await this.localDb.allDocs({ include_docs: true, descending: true });
+      // 1. Chargement des documents locaux
+      const result = await this.localDb.allDocs({ include_docs: true });
       const docs = result.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
 
-      const offlineDocs = dataType ? docs.filter(d => d.type === dataType) : docs;
-      const filteredOffline = isAdmin ? offlineDocs : offlineDocs.filter(d => d.owner === userId);
-
-      let onlineDocs: any[] = [];
-
-      if (this.remoteDb && this.isOnline) {
-        try {
-          if (!isAdmin && type === 'all') throw new Error('Type "all" non autorisé pour les utilisateurs non-admin');
-          const viewToQuery = `map-client/${isAdmin ? 'by_type' : 'by_type_and_owner'}`
-          const remoteResult = await this.remoteDb.query(viewToQuery, { include_docs: true, descending: true, key: isAdmin ? dataType : [dataType, userId] })
-
-          onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
-        } catch (err: any) {
-          if (err.name === 'missing_named_view') {
-            console.warn('⚠️ View not indexed on remote DB.');
-          } else {
-            throw err;
-          }
-        }
-      }
-
-      const docMap = new Map<string, any>();
-      for (const doc of filteredOffline) docMap.set(doc._id, doc);
-      for (const doc of onlineDocs) docMap.set(doc._id, doc);
-
-      return Array.from(docMap.values());
+      const localFilteredByType = dataType ? docs.filter(d => d.type === dataType) : docs;
+      filteredOffline = isAdmin ? localFilteredByType : localFilteredByType.filter(d => d.owner === userId);
     } catch (err) {
       console.error('getAllDocs error:', err);
-      return [];
+      // return [];
     }
+
+    // 2. Chargement des documents distants si en ligne
+    if (this.remoteDb && this.isOnline) {
+      if (!isAdmin && type === 'all') throw new Error('Type "all" non autorisé pour les utilisateurs non-admin');
+      const viewToQuery = isAdmin ? 'map-client/by_type' : 'map-client/by_type_and_owner';
+      const key = isAdmin ? dataType : [dataType, userId];
+      try {
+        const remoteResult = await this.remoteDb.query(viewToQuery, { include_docs: true, key })
+        onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
+      } catch (err: any) {
+        if (err.name === 'missing_named_view') {
+          console.warn('⚠️ View not indexed on remote DB.');
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    const docMap = new Map<string, any>();
+    for (const doc of filteredOffline) docMap.set(doc._id, doc);
+    for (const doc of onlineDocs) docMap.set(doc._id, doc);
+
+    return Array.from(docMap.values());
   }
 
 
@@ -332,22 +352,24 @@ export class DbService {
 
     try {
       const doc: any = await this.localDb.get(id);
-      if (!isAdmin && doc.owner !== userId) throw new Error('Unauthorized access to document');
+      if (!isAdmin && doc.owner !== userId) {
+        console.error('Unauthorized access to document')
+        return null;
+      };
       return doc;
     } catch (e: any) {
       if (e.status === 404 && this.remoteDb && this.isOnline) {
         try {
           const remoteDoc: any = await this.remoteDb.get(id);
-          if (!isAdmin && remoteDoc.owner !== userId) throw new Error('Unauthorized access to document');
+          if (!isAdmin && remoteDoc.owner !== userId) {
+            console.error('Unauthorized access to document');
+            return null;
+          }
           return remoteDoc;
         } catch (e2: any) {
-          if (e2.status === 404) {
-            console.warn(`Document with id "${id}" not found.`);
-          } else if (e2.message === 'Unauthorized access to document') {
-            console.warn(`Access denied for user ${userId} to document ${id}.`);
-          } else {
-            console.warn('Remote get error:', e2);
-          }
+          if (e2.status === 404) console.warn(`Document with id "${id}" not found.`);
+          else if (e2.message === 'Unauthorized access to document') console.warn(`Access denied for user ${userId} to document ${id}.`);
+          else console.warn('Remote get error:', e2);
         }
       } else if (e.message === 'Unauthorized access to document') {
         console.warn(`Access denied for user ${userId} to document ${id}.`);
@@ -367,41 +389,39 @@ export class DbService {
 
     if (!healthCenterId) return [];
 
+    let filteredOffline: any[] = [];
+    let onlineDocs: any[] = [];
+
     try {
       const result = await this.localDb.allDocs({ include_docs: true, descending: true });
       const docs = result.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
       const offlineDocs = docs.filter((d: any) => d.type === dataType && d.healthCenterId === healthCenterId);
-      const filteredOffline = isAdmin ? offlineDocs : offlineDocs.filter(d => d.owner === userId);
-
-      let onlineDocs: any[] = [];
-
-      if (this.remoteDb && this.isOnline) {
-        try {
-          const viewToQuery = `map-client/${isAdmin ? 'by_type_and_parent' : 'by_type_and_parent_and_owner'}`;
-          const remoteResult = await this.remoteDb.query(viewToQuery, {
-            key: isAdmin ? [dataType, healthCenterId] : [dataType, healthCenterId, userId],
-            include_docs: true,
-            descending: true
-          });
-          onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
-        } catch (err: any) {
-          if (err.name === 'missing_named_view') {
-            console.warn('⚠️ View not indexed on remote DB.');
-          } else {
-            throw err;
-          }
-        }
-      }
-
-      const docMap = new Map<string, any>();
-      for (const doc of filteredOffline) docMap.set(doc._id, doc);
-      for (const doc of onlineDocs) docMap.set(doc._id, doc);
-
-      return Array.from(docMap.values());
+      filteredOffline = isAdmin ? offlineDocs : offlineDocs.filter(d => d.owner === userId);
     } catch (err) {
-      console.error('getChwsByFsId error:', err);
-      return [];
+      console.error('getChwsByFsId (LOCAL) error:', err);
     }
+
+    if (this.remoteDb && this.isOnline) {
+      try {
+        const viewToQuery = `map-client/${isAdmin ? 'by_type_and_parent' : 'by_type_and_parent_and_owner'}`;
+        const remoteResult = await this.remoteDb.query(viewToQuery, {
+          key: isAdmin ? [dataType, healthCenterId] : [dataType, healthCenterId, userId],
+          include_docs: true,
+          descending: true
+        });
+        onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
+      } catch (err: any) {
+        console.error('getChwsByFsId (REMOTE) error:', err);
+        // if (err.name === 'missing_named_view') console.warn('⚠️ View not indexed on remote DB.');
+        // else throw err;
+      }
+    }
+
+    const docMap = new Map<string, any>();
+    for (const doc of filteredOffline) docMap.set(doc._id, doc);
+    for (const doc of onlineDocs) docMap.set(doc._id, doc);
+
+    return Array.from(docMap.values());
   }
 
 
@@ -418,7 +438,9 @@ export class DbService {
       existingDoc = await this.localDb.get(doc._id) as any;
     } catch (e: any) {
       if (this.remoteDb && this.isOnline) {
-        existingDoc = await this.remoteDb.get(doc._id) as any;
+        try {
+          existingDoc = await this.remoteDb.get(doc._id) as any;
+        } catch (error) { }
       }
     }
 
@@ -428,13 +450,14 @@ export class DbService {
     }
 
     if (!isAdmin && existingDoc.owner !== userId) {
-      throw new Error('Unauthorized delete attempt by non-owner');
+      console.error('Unauthorized delete attempt by non-owner');
+      return false;
     }
 
     try {
       const result = await this.localDb.remove(doc);
       console.log(`✔ Local deletion: ${doc._id}`);
-      isLocalSuccess = result.ok;
+      isLocalSuccess = true;
     } catch (e: any) {
       console.warn(`⚠ Local deletion failed: ${doc._id}`, e);
       isLocalSuccess = false;
@@ -448,7 +471,7 @@ export class DbService {
       try {
         const result = await this.remoteDb.remove(doc);
         console.log(`✔ Remote deletion: ${doc._id}`);
-        isRemoteSuccess = result.ok;
+        isRemoteSuccess = true;
       } catch (e) {
         console.warn(`⚠ Remote deletion failed: ${doc._id}`, e);
         isRemoteSuccess = false;
