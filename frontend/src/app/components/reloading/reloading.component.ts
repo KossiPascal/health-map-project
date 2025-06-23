@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { AuthService } from '@kossi-services/auth.service';
 import { UpdateServiceWorkerService } from '@kossi-services/update-service-worker.service';
 @Component({
   standalone: false,
@@ -8,7 +9,7 @@ import { UpdateServiceWorkerService } from '@kossi-services/update-service-worke
 export class ReloadingComponent {
 
   constructor(
-    private usw: UpdateServiceWorkerService,) { }
+    private usw: UpdateServiceWorkerService, private auth: AuthService) { }
 
   close() {
     this.usw.UPDATE_INTERVAL = this.usw.TWO_HOURS;
@@ -16,6 +17,6 @@ export class ReloadingComponent {
 
 
   submit() {
-    this.usw.cleanToUpdateWebApp();
+    this.usw.cleanToUpdateWebApp().then(e=>this.auth.logout());
   }
 }

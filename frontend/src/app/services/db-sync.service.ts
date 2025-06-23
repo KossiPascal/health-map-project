@@ -59,85 +59,74 @@ export class DbSyncService {
         });
     }
 
-    /**
-     * Lance la synchronisation PouchDB ↔ CouchDB.
-     * Priorité aux données locales.
-     */
-    async startLiveSync(): Promise<void> {
-        if (!this.localDb || !this.remoteDb || !navigator.onLine || this.isSyncing) {
-            this.updateStatus('idle');
-            return;
-        }
-        this.isSyncing = true;
-        this.updateStatus('active');
+async startLiveSync(): Promise<void> {
+  if (!this.localDb || !this.remoteDb || !navigator.onLine || this.isSyncing) {
+    this.updateStatus('idle');
+    return;
+  }
 
-        try {
-            // if (this.functions) await this.functions();
-            const syncOptions = {
-                live: true,
-                retry: true,
-                filter: '_view', // 🧠 indique qu’on utilise une vue
-                view: 'map-client/by_owner', // 🔍 nom de la vue (design/view)
-                query_params: {
-                    key: `"${this.userId}"` // le owner utilisé dans `emit(doc.owner)`
-                }
-            };
-            this.syncHandler = PouchDB.sync(this.localDb, this.remoteDb, syncOptions)
-                .on('change', () => this.updateStatus('changed'))
-                .on('paused', err => this.updateStatus(err ? 'error' : 'paused'))
-                .on('active', () => this.updateStatus('active'))
-                .on('denied', () => this.updateStatus('error'))
-                .on('error', () => this.updateStatus('error'));
+  this.isSyncing = true;
+  this.updateStatus('active');
 
-            this.isSyncing = false;
-        } catch (error:any) {
-            this.isSyncing = false;
-            // console.error('❌ Sync failed:', error);
-            if ((`${error?.docId}/${error?.message}`).includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
-                this.updateStatus('paused');
-            } else {
-                this.updateStatus('error');
-            }
-        }
+  try {
+    const syncOptions = {
+      live: true,
+      retry: true,
+      filter: '_view',
+      view: 'map-client/by_owner',
+      query_params: { key: this.userId },
+    };
+
+    this.syncHandler = PouchDB.sync(this.localDb, this.remoteDb, syncOptions)
+      .on('change', () => this.updateStatus('changed'))
+      .on('paused', err => this.updateStatus(err ? 'error' : 'paused'))
+      .on('active', () => this.updateStatus('active'))
+      .on('denied', () => this.updateStatus('error'))
+      .on('error', () => this.updateStatus('error'));
+  } catch (error: any) {
+    if (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
+      this.updateStatus('paused');
+    } else {
+      this.updateStatus('error');
     }
+  } finally {
+    this.isSyncing = false;
+  }
+}
 
 
-    async manualSync(): Promise<void> {
-        if (!this.localDb || !this.remoteDb || !navigator.onLine) {
-            this.updateStatus('idle');
-            return;
-        }
-            this.isSyncing = true;
-        this.updateStatus('active');
-        try {
-            // if (this.functions) await this.functions();
-            const filterOptions = {
-                filter: '_view',
-                view: 'map-client/by_owner',
-                query_params: {
-                    key: `"${this.userId}"` // ⚠️ Important : JSON.stringify(this.userId)
-                }
-            };
-            // Sync local → distant
-            await this.localDb.replicate.to(this.remoteDb)
-            // console.log('⬆️ Sync local → remote done');
-            // Sync distant → local
-            await this.localDb.replicate.from(this.remoteDb, filterOptions)
-            // console.log('⬇️ Sync remote → local done');
-            this.updateStatus('paused');
-            this.isSyncing = false;
+async manualSync(): Promise<void> {
+  if (!this.localDb || !this.remoteDb || !navigator.onLine) {
+    this.updateStatus('idle');
+    return;
+  }
 
-            this.checkIfSyncNeeded();
-        } catch (error:any) {
-            this.isSyncing = false;
-            // console.error('❌ Manual sync failed:', error);
-            if ((`${error?.docId}/${error?.message}`).includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
-                this.updateStatus('paused');
-            } else {
-                this.updateStatus('error');
-            }
-        }
+  this.isSyncing = true;
+  this.updateStatus('active');
+
+  try {
+    const filterOptions = {
+      filter: '_view',
+      view: 'map-client/by_owner',
+      query_params: { key: this.userId },
+    };
+
+    await this.localDb.replicate.to(this.remoteDb);
+    await this.localDb.replicate.from(this.remoteDb, filterOptions);
+
+    this.updateStatus('paused');
+    this.checkIfSyncNeeded();
+  } catch (error: any) {
+    if (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
+      this.updateStatus('paused');
+    } else {
+      this.updateStatus('error');
     }
+  } finally {
+    this.isSyncing = false;
+  }
+}
+
 
 
     // async startLiveSync(): Promise<void> {

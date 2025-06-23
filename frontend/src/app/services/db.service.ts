@@ -6,6 +6,7 @@ import { UserContextService } from './user-context.service';
 import PouchDB from 'pouchdb-browser';
 import PouchFind from 'pouchdb-find';
 import { DbSyncService } from './db-sync.service';
+import { NetworkService } from './network.service';
 
 PouchDB.plugin(PouchFind);
 
@@ -19,13 +20,15 @@ export class DbService {
 
   public localDb: PouchDB.Database;
   public remoteDb: PouchDB.Database;
-  private isOnline = true;
+  private isOnline = false;
 
   constructor(
     private api: ApiService,
     private dbSync: DbSyncService,
+    private network: NetworkService,
     private userCtx: UserContextService,
   ) {
+    this.network.onlineChanges$.subscribe(online => this.isOnline = online);
     this.localDb = new PouchDB(this.mapDbName);
     this.remoteDb = this.createRemoteDbInstance();
     this.dbSync.initialize(this.localDb, this.remoteDb, this.userCtx.userId, async () => {
@@ -200,12 +203,15 @@ export class DbService {
     const isAdmin = this.userCtx.isAdmin;
     const dataType = type === 'chw' ? 'chw-map' : 'fs-map';
 
+    const targetDb = this.remoteDb && this.isOnline ? this.remoteDb : this.localDb;
+    const isRemote = targetDb === this.remoteDb;
+
     try {
       let existingDoc: any = null;
 
       if (doc._id) {
         try {
-          existingDoc = await this.localDb.get(doc._id);
+          existingDoc = await targetDb.get(doc._id);
         } catch (err: any) {
           if (err.status !== 404) throw err;
         }
@@ -230,61 +236,40 @@ export class DbService {
           owner: existingDoc.owner,
           createdAt: existingDoc.createdAt,
         };
-        const { _id, _rev, type, owner, ...rest } = updatedDoc;
 
         try {
-          if (this.remoteDb && this.isOnline) {
-            const remoteDoc = await this.remoteDb.get(_id).catch(() => null);
-            const remoteToUpdate = { ...(remoteDoc || {}), ...updatedDoc, _rev: remoteDoc?._rev };
-            result = await this.remoteDb.put(remoteToUpdate);
-            console.log(`[⇅] UPDATE remote ${_id}`);
-          } else {
-            result = await this.localDb.put({ _id, _rev, type, owner, ...rest });
-            console.log(`[✔] UPDATE local ${_id}`);
-          }
+          result = await targetDb.put(updatedDoc);
+          console.log(`[${isRemote ? '⇅' : '✔'}] UPDATE ${isRemote ? 'remote' : 'local'} ${updatedDoc._id}`);
         } catch (err) {
-          console.warn(`[⚠] update failed for ${_id}:`, err);
+          console.warn(`[⚠] update failed for ${updatedDoc._id}:`, err);
         }
 
-        // // Propagation vers la base distante
-        // if (result?.ok && this.remoteDb && this.isOnline) {
-        //   this.dbSync.manualSync();
-        // }
-
-        return !!result && result.ok;
       } else {
+        // Création d’un nouveau document
+        const newDoc = {
+          ...doc,
+          _id: doc._id ?? uuidv4(),
+          type: dataType,
+          owner: userId,
+          createdAt: doc.createdAt ?? now,
+          updatedAt: now,
+          updatedBy: userId,
+        };
 
         try {
-          // Création d’un nouveau document
-          const newDoc = {
-            ...doc,
-            _id: doc._id ?? uuidv4(),
-            type: dataType,
-            owner: userId,
-            createdAt: doc.createdAt ?? now,
-            updatedAt: now,
-            updatedBy: userId,
-          };
-
-          const { _id, type, owner, ...rest } = newDoc;
-          if (this.remoteDb && this.isOnline) {
-            result = await this.remoteDb.put({ _id, type, owner, ...rest });
-            console.log(`[⇅] CREATE remote ${_id}`);
-          } else {
-            result = await this.localDb.put({ _id, type, owner, ...rest });
-            console.log(`[✔] CREATE local ${_id}`);
-          }
+          result = await targetDb.put(newDoc);
+          console.log(`[${isRemote ? '⇅' : '✔'}] CREATE ${isRemote ? 'remote' : 'local'} ${newDoc._id}`);
         } catch (err) {
           console.warn(`[⚠] creation failed:`, err);
         }
-
-        // // Propagation vers la base distante
-        // if (result?.ok && this.remoteDb && this.isOnline) {
-        //   this.dbSync.manualSync();
-        // }
-
-        return !!result && result.ok;
       }
+
+      // 🔁 Synchronisation manuelle si réussite et base distante disponible
+      if (result?.ok && this.remoteDb && this.isOnline && this.dbSync?.manualSync) {
+        this.dbSync.manualSync();
+      }
+
+      return !!result && result.ok;
     } catch (e: any) {
       if (e.message === 'Unauthorized update attempt by non-owner') {
         console.warn(`⛔ Unauthorized update by ${userId} on ${doc._id}`);
@@ -296,6 +281,7 @@ export class DbService {
   }
 
 
+
   // === GET ALL DOCS ===
   async getAllDocs(type: 'chw' | 'fs' | 'all'): Promise<(ChwMap | HealthCenterMap)[]> {
     const userId = this.userCtx.userId;
@@ -304,7 +290,7 @@ export class DbService {
 
     try {
       const result = await this.localDb.allDocs({ include_docs: true, descending: true });
-      const docs: any[] = result.rows.map(r => r.doc!).filter((d: any) => !!d && !d._deleted);
+      const docs = result.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
 
       const offlineDocs = dataType ? docs.filter(d => d.type === dataType) : docs;
       const filteredOffline = isAdmin ? offlineDocs : offlineDocs.filter(d => d.owner === userId);
@@ -314,13 +300,10 @@ export class DbService {
       if (this.remoteDb && this.isOnline) {
         try {
           if (!isAdmin && type === 'all') throw new Error('Type "all" non autorisé pour les utilisateurs non-admin');
+          const viewToQuery = `map-client/${isAdmin ? 'by_type' : 'by_type_and_owner'}`
+          const remoteResult = await this.remoteDb.query(viewToQuery, { include_docs: true, descending: true, key: isAdmin ? dataType : [dataType, userId] })
 
-          const remoteQuery = isAdmin
-            ? this.remoteDb.query('map-client/by_type', { include_docs: true, descending: true, key: dataType })
-            : this.remoteDb.query('map-client/by_type_and_owner', { include_docs: true, descending: true, key: [dataType, userId] });
-
-          const remoteResult = await remoteQuery;
-          onlineDocs = remoteResult.rows.map(r => r.doc!).filter((d: any) => !!d && !d._deleted);
+          onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
         } catch (err: any) {
           if (err.name === 'missing_named_view') {
             console.warn('⚠️ View not indexed on remote DB.');
@@ -341,6 +324,7 @@ export class DbService {
     }
   }
 
+
   // === GET ONE DOC ===
   async getDoc(id: string): Promise<ChwMap | HealthCenterMap | null> {
     const userId = this.userCtx.userId;
@@ -356,10 +340,14 @@ export class DbService {
           const remoteDoc: any = await this.remoteDb.get(id);
           if (!isAdmin && remoteDoc.owner !== userId) throw new Error('Unauthorized access to document');
           return remoteDoc;
-        } catch (e: any) {
-          if (e.status === 404) console.warn(`Document with id "${id}" not found.`);
-          else if (e.message === 'Unauthorized access to document') console.warn(`Access denied for user ${userId} to document ${id}.`);
-          else console.warn('Remote get error:', e);
+        } catch (e2: any) {
+          if (e2.status === 404) {
+            console.warn(`Document with id "${id}" not found.`);
+          } else if (e2.message === 'Unauthorized access to document') {
+            console.warn(`Access denied for user ${userId} to document ${id}.`);
+          } else {
+            console.warn('Remote get error:', e2);
+          }
         }
       } else if (e.message === 'Unauthorized access to document') {
         console.warn(`Access denied for user ${userId} to document ${id}.`);
@@ -370,8 +358,9 @@ export class DbService {
     }
   }
 
+
   // === GET CHWs BY FS ID ===
-  async getChwsByFsId(healthCenterId: string | undefined): Promise<ChwMap[]> {
+  async getChwsByFsId(healthCenterId?: string): Promise<ChwMap[]> {
     const userId = this.userCtx.userId;
     const isAdmin = this.userCtx.isAdmin;
     const dataType = 'chw-map';
@@ -380,26 +369,21 @@ export class DbService {
 
     try {
       const result = await this.localDb.allDocs({ include_docs: true, descending: true });
-      const docs: any[] = result.rows.map(r => r.doc!).filter((d: any) => !!d && !d._deleted);
-      const offlineDocs = docs.filter(d => d.type === dataType && d.healthCenterId === healthCenterId);
+      const docs = result.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
+      const offlineDocs = docs.filter((d: any) => d.type === dataType && d.healthCenterId === healthCenterId);
       const filteredOffline = isAdmin ? offlineDocs : offlineDocs.filter(d => d.owner === userId);
 
       let onlineDocs: any[] = [];
 
       if (this.remoteDb && this.isOnline) {
         try {
-          const remoteResult = isAdmin
-            ? await this.remoteDb.query('map-client/by_type_and_parent', {
-              key: [dataType, healthCenterId],
-              include_docs: true,
-              descending: true
-            })
-            : await this.remoteDb.query('map-client/by_type_and_parent_and_owner', {
-              key: [dataType, healthCenterId, userId],
-              include_docs: true,
-              descending: true
-            });
-          onlineDocs = remoteResult.rows.map(r => r.doc!).filter((d: any) => !!d && !d._deleted);
+          const viewToQuery = `map-client/${isAdmin ? 'by_type_and_parent' : 'by_type_and_parent_and_owner'}`;
+          const remoteResult = await this.remoteDb.query(viewToQuery, {
+            key: isAdmin ? [dataType, healthCenterId] : [dataType, healthCenterId, userId],
+            include_docs: true,
+            descending: true
+          });
+          onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
         } catch (err: any) {
           if (err.name === 'missing_named_view') {
             console.warn('⚠️ View not indexed on remote DB.');
@@ -410,8 +394,8 @@ export class DbService {
       }
 
       const docMap = new Map<string, any>();
-      for (const doc of onlineDocs) docMap.set(doc._id, doc);
       for (const doc of filteredOffline) docMap.set(doc._id, doc);
+      for (const doc of onlineDocs) docMap.set(doc._id, doc);
 
       return Array.from(docMap.values());
     } catch (err) {
@@ -419,6 +403,7 @@ export class DbService {
       return [];
     }
   }
+
 
   // === DELETE DOC ===
   async deleteDoc(doc: { _id: string, _rev: string }): Promise<boolean> {
