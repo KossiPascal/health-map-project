@@ -323,10 +323,13 @@ export class DbService {
     // 2. Chargement des documents distants si en ligne
     if (this.remoteDb && this.isOnline) {
       if (!isAdmin && type === 'all') throw new Error('Type "all" non autorisé pour les utilisateurs non-admin');
-      const viewToQuery = isAdmin ? 'map-client/by_type' : 'map-client/by_type_and_owner';
-      const key = isAdmin ? dataType : [dataType, userId];
+      const viewName = isAdmin ? 'map-client/by_type' : 'map-client/by_type_and_owner';
+      const viewKey = isAdmin ? dataType : [dataType, userId];
       try {
-        const remoteResult = await this.remoteDb.query(viewToQuery, { include_docs: true, key })
+        // ✅ Forcer CouchDB à indexer la vue (utile si la synchro vient de démarrer)
+        await this.remoteDb.query(viewName, { key: viewKey, limit: 1, stale: 'update_after' });
+
+        const remoteResult = await this.remoteDb.query(viewName, { include_docs: true, descending: true, key: viewKey })
         onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
       } catch (err: any) {
         if (err.name === 'missing_named_view') {
@@ -403,12 +406,13 @@ export class DbService {
 
     if (this.remoteDb && this.isOnline) {
       try {
-        const viewToQuery = `map-client/${isAdmin ? 'by_type_and_parent' : 'by_type_and_parent_and_owner'}`;
-        const remoteResult = await this.remoteDb.query(viewToQuery, {
-          key: isAdmin ? [dataType, healthCenterId] : [dataType, healthCenterId, userId],
-          include_docs: true,
-          descending: true
-        });
+        const viewName = `map-client/${isAdmin ? 'by_type_and_parent' : 'by_type_and_parent_and_owner'}`;
+        const viewKey = isAdmin ? [dataType, healthCenterId] : [dataType, healthCenterId, userId];
+
+        // ✅ Forcer CouchDB à indexer la vue (utile si la synchro vient de démarrer)
+        await this.remoteDb.query(viewName, { key: viewKey, limit: 1, stale: 'update_after' });
+        
+        const remoteResult = await this.remoteDb.query(viewName, { key: viewKey, include_docs: true, descending: true });
         onlineDocs = remoteResult.rows.map((r: any) => r.doc!).filter(d => !!d && !d._deleted);
       } catch (err: any) {
         console.error('getChwsByFsId (REMOTE) error:', err);

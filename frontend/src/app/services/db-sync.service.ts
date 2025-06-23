@@ -26,6 +26,7 @@ export class DbSyncService {
     private isSyncing = false;
     private functions: (() => Promise<void>) | null = null;
 
+    private isOnline: boolean = false;
 
     status$ = this.syncStatus$.asObservable();
     cssClass$ = this.syncCssClass$.asObservable();
@@ -49,8 +50,13 @@ export class DbSyncService {
     /**
      * Gère les événements de changement de réseau.
      */
-    private setupNetworkListeners() {
+    private async setupNetworkListeners() {
+        await this.warmUpViews();
+
+        // setTimeout(() => this.startLiveSync(), 2000);
+
         this.network.onlineChanges$.subscribe(isOnline => {
+            this.isOnline = isOnline;
             if (isOnline) {
                 this.startLiveSync();
             } else {
@@ -59,73 +65,117 @@ export class DbSyncService {
         });
     }
 
-async startLiveSync(): Promise<void> {
-  if (!this.localDb || !this.remoteDb || !navigator.onLine || this.isSyncing) {
-    this.updateStatus('idle');
-    return;
-  }
+    async warmUpViews(): Promise<void> {
+        if (!this.remoteDb || !this.isOnline) return;
 
-  this.isSyncing = true;
-  this.updateStatus('active');
+        const userId = this.userId;
 
-  try {
-    const syncOptions = {
-      live: true,
-      retry: true,
-      filter: '_view',
-      view: 'map-client/by_owner',
-      query_params: { key: this.userId },
-    };
+        const viewsToWarm = [
+            { view: 'map-client/by_owner', key: userId },
+            { view: 'map-client/by_type', key: 'chw-map' },
+            { view: 'map-client/by_type', key: 'fs-map' },
+            { view: 'map-client/by_type_and_owner', key: ['chw-map', userId] },
+            { view: 'map-client/by_type_and_owner', key: ['fs-map', userId] },
+            { view: 'map-client/by_type_and_parent', key: ['chw-map', 'dummy-fs-id'] }, // si tu utilises cette vue
+            { view: 'map-client/by_type_and_parent_and_owner', key: ['chw-map', 'dummy-fs-id', userId] },
+        ];
 
-    this.syncHandler = PouchDB.sync(this.localDb, this.remoteDb, syncOptions)
-      .on('change', () => this.updateStatus('changed'))
-      .on('paused', err => this.updateStatus(err ? 'error' : 'paused'))
-      .on('active', () => this.updateStatus('active'))
-      .on('denied', () => this.updateStatus('error'))
-      .on('error', () => this.updateStatus('error'));
-  } catch (error: any) {
-    if (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
-      this.updateStatus('paused');
-    } else {
-      this.updateStatus('error');
+        for (const { view, key } of viewsToWarm) {
+            try {
+                await this.remoteDb.query(view, {
+                    key,
+                    limit: 1,
+                    stale: 'update_after'
+                });
+                console.log(`🔥 Vue "${view}" amorcée`);
+            } catch (err: any) {
+                if (err.name === 'missing_named_view') {
+                    console.warn(`⚠️ Vue absente : ${view}`);
+                } else {
+                    console.error(`❌ Erreur amorçage vue ${view}`, err);
+                }
+            }
+        }
     }
-  } finally {
-    this.isSyncing = false;
-  }
-}
 
 
-async manualSync(): Promise<void> {
-  if (!this.localDb || !this.remoteDb || !navigator.onLine) {
-    this.updateStatus('idle');
-    return;
-  }
+    async startLiveSync(): Promise<void> {
+        if (!this.localDb || !this.remoteDb || !navigator.onLine || this.isSyncing) {
+            this.updateStatus('idle');
+            return;
+        }
 
-  this.isSyncing = true;
-  this.updateStatus('active');
+        this.isSyncing = true;
+        this.updateStatus('active');
 
-  try {
-    const filterOptions = {
-      filter: '_view',
-      view: 'map-client/by_owner',
-      query_params: { key: this.userId },
-    };
+        try {
+            const syncOptions = {
+                live: true,
+                retry: true,
+                filter: '_view',
+                view: 'map-client/by_owner',
+                query_params: { key: this.userId },
+                // filter: 'filters/by_owner',
+                // query_params: { owner: this.userId }
+            };
 
-    await this.localDb.replicate.to(this.remoteDb);
-    await this.localDb.replicate.from(this.remoteDb, filterOptions);
-
-    this.updateStatus('paused');
-    this.checkIfSyncNeeded();
-  } catch (error: any) {
-    if (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
-      this.updateStatus('paused');
-    } else {
-      this.updateStatus('error');
+            this.syncHandler = PouchDB.sync(this.localDb, this.remoteDb, syncOptions)
+                .on('change', () => this.updateStatus('changed'))
+                .on('paused', err => this.updateStatus(err ? 'error' : 'paused'))
+                .on('active', () => this.updateStatus('active'))
+                .on('denied', () => this.updateStatus('error'))
+                .on('error', () => this.updateStatus('error'));
+        } catch (error: any) {
+            if (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
+                this.updateStatus('paused');
+            } else {
+                this.updateStatus('error');
+            }
+        } finally {
+            this.isSyncing = false;
+        }
     }
-  } finally {
-    this.isSyncing = false;
-  }
-}
+
+
+    async manualSync(): Promise<void> {
+        if (!this.localDb || !this.remoteDb || !navigator.onLine) {
+            this.updateStatus('idle');
+            return;
+        }
+
+        this.isSyncing = true;
+        this.updateStatus('active');
+
+        try {
+            // // 👇 Force CouchDB à indexer la vue avant de l'utiliser en live sync
+            // await this.remoteDb.query('map-client/by_owner', {
+            //     key: this.userId,
+            //     limit: 1,
+            //     stale: 'update_after' // pour éviter de bloquer l’appel si l’index est obsolète
+            // });
+            const filterOptions = {
+                filter: '_view',
+                view: 'map-client/by_owner',
+                query_params: { key: this.userId },
+                // filter: 'filters/by_owner',
+                // query_params: { owner: this.userId }
+            };
+
+            await this.localDb.replicate.to(this.remoteDb);
+            await this.localDb.replicate.from(this.remoteDb, filterOptions);
+
+            this.updateStatus('paused');
+            this.checkIfSyncNeeded();
+        } catch (error: any) {
+            if (`${error?.docId}/${error?.message}`.includes('_local/') || (error?.name ?? error?.message) === 'missing_id') {
+                this.updateStatus('paused');
+            } else {
+                this.updateStatus('error');
+            }
+        } finally {
+            this.isSyncing = false;
+        }
+    }
 
 
 
